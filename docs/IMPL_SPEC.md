@@ -196,7 +196,6 @@ Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN 
 - At each position, try in this order: spaces and tabs (skip); newline (emit NEWLINE unless the paren depth is above 0); a `//` comment (record it, skip to the end of the line); the multi-word keyword table, longest first, with the word-boundary check; `localhost:` plus digits; `:wq`; a number (then the 404 rule, leading zeros and overflow); a string; an identifier (then the single-word keyword and reserved-word check); operators, longest first. Anything else becomes an ERROR token plus E400 "Unexpected character `@`."
 - Keyword matching goes word by word and allows any run of spaces or tabs between words. `npm install -g` must be tried before `npm install`, and `git push --force` before plain `git push`.
 - It never raises. Bad input becomes ERROR tokens with diagnostics, and lexing continues.
-- P2: superscript ² and ³ inside a Big O annotation lex as CARET plus INT.
 
 # 6. Parser
 

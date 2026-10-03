@@ -8,11 +8,13 @@ UNKNOWN, written O(?), and so is anything that calls it.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
 
 from btw import ast
-from btw.diagnostics import Diagnostic, Severity
+from btw.diagnostics import Diagnostic, Edit, Fix, Severity
 from btw.span import Pos, Span
+from btw.tokens import Token, TokenKind as K
 
 UNKNOWN = None
 """The degree of a recursive microservice: O(?)."""
@@ -119,8 +121,12 @@ def infer(program: ast.Program) -> dict[str, Degree]:
     return {name: cost.degree for name, cost in costs(program).items()}
 
 
-def format_complexity(degree: Degree, var: str | None = None) -> str:
-    """O(1), O(n), O(n²), O(n³), O(n^4) and up, and O(?) for UNKNOWN."""
+def format_complexity(degree: Degree, var: str | None = None, *, source: bool = False) -> str:
+    """O(1), O(n), O(n²), O(n³), O(n^4) and up, and O(?) for UNKNOWN.
+
+    With source=True, degrees 2 and 3 come out as O(n^2) and O(n^3): the
+    lexer doesn't accept superscripts, so quick-fix edits use this form.
+    """
     n = var or "n"
     match degree:
         case None:
@@ -129,26 +135,68 @@ def format_complexity(degree: Degree, var: str | None = None) -> str:
             return "O(1)"
         case 1:
             return f"O({n})"
-        case 2:
+        case 2 if not source:
             return f"O({n}²)"
-        case 3:
+        case 3 if not source:
             return f"O({n}³)"
         case _:
             return f"O({n}^{degree})"
 
 
-def check_bigo(program: ast.Program) -> list[Diagnostic]:
-    """E417, W417, W102, W508 and W203 for every microservice."""
+def check_bigo(program: ast.Program, tokens: list[Token] | None = None) -> list[Diagnostic]:
+    """E417, W417, W102, W508 and W203 for every microservice.
+
+    E417 and W417 carry their quick fixes (P2) either way. W102's fix inserts
+    the SLA after the `)` of the parameter list, which only the tokens have,
+    so without them W102 carries no fix.
+    """
     inference = Inference(program)
     diagnostics: list[Diagnostic] = []
     for item in program.items:
         if isinstance(item, ast.Microservice):
-            diagnostics += verdict(item, inference.microservice(item))
+            diagnostics += verdict(item, inference.microservice(item), tokens)
     return diagnostics
 
 
-def verdict(ms: ast.Microservice, cost: Cost) -> list[Diagnostic]:
-    """The verdict table of Language Spec 9.1."""
+# Tokens that can't come before the `)` of a parameter list. Reaching one
+# first means the `)` is missing: newlines aren't tokens inside parens, so it's
+# usually the body's `{`, and a `(` means recovery swallowed an annotation.
+PAST_PARAMS = {K.LPAREN, K.LBRACE, K.RBRACE, K.NEWLINE, K.WQ, K.EOF}
+
+
+def params_close(tokens: list[Token], ms: ast.Microservice) -> Span | None:
+    """The span of the `)` that closes the parameter list of `ms`, or None when
+    it's missing.
+
+    The AST doesn't keep that `)`, so this scans the tokens from the end of the
+    last parameter, or from just past the `(` when there are none. The scan
+    gives up at the start of the body or at any token in PAST_PARAMS.
+    """
+    anchor = ms.params[-1].span.end if ms.params else ms.name.span.end
+    i = bisect_left(tokens, anchor, key=lambda tok: tok.span.start)
+    if not ms.params:
+        if i == len(tokens) or tokens[i].kind is not K.LPAREN:
+            return None
+        i += 1
+    for tok in tokens[i:]:
+        if tok.span.start >= ms.body.span.start or tok.kind in PAST_PARAMS:
+            return None
+        if tok.kind is K.RPAREN:
+            return tok.span
+    return None
+
+
+def add_sla(ms: ast.Microservice, degree: int, tokens: list[Token] | None) -> list[Fix]:
+    """W102's quick fix: ` O(n)` inserted right after the parameter list."""
+    close = params_close(tokens, ms) if tokens is not None else None
+    if close is None:
+        return []
+    title, text = format_complexity(degree), format_complexity(degree, source=True)
+    return [Fix(f"Add SLA {title}", [Edit(Span(close.end, close.end), f" {text}")])]
+
+
+def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None) -> list[Diagnostic]:
+    """The verdict table of Language Spec 9.1, with the quick fixes of Language Spec 11."""
     big_o, d = ms.big_o, cost.degree
     found: list[Diagnostic] = []
     if big_o is not None and big_o.degree is None:
@@ -157,11 +205,12 @@ def verdict(ms: ast.Microservice, cost: Cost) -> list[Diagnostic]:
         found.append(warning("W508", "Complexity: O(?). The halting problem is a skill issue.", ms.name.span))
     elif big_o is None:
         message = f"microservice `{ms.name.name}` has no SLA. Inferred: {format_complexity(d)}."
-        found.append(warning("W102", message, ms.name.span))
+        found.append(warning("W102", message, ms.name.span, add_sla(ms, d, tokens)))
     elif big_o.degree is None:
         pass  # unverifiable: W203 above
     elif big_o.degree < d:
         said, actual = format_complexity(big_o.degree, big_o.var), format_complexity(d, big_o.var)
+        text = format_complexity(d, big_o.var, source=True)
         found.append(Diagnostic(
             "E417",
             Severity.ERROR,
@@ -170,12 +219,15 @@ def verdict(ms: ast.Microservice, cost: Cost) -> list[Diagnostic]:
             soft=True,
             related=[(cost.loop, f"nested doomscroll #{d} starts here")],
             help=f"try `{actual}`, then tell the PM it was always the plan",
+            fixes=[Fix(f"Update SLA to {actual}", [Edit(big_o.span, text)])],
         ))
     elif big_o.degree > d:
-        message = f"Technically correct, but this is {format_complexity(d, big_o.var)}. Sandbagging your estimates?"
-        found.append(warning("W417", message, big_o.span))
+        actual = format_complexity(d, big_o.var)
+        message = f"Technically correct, but this is {actual}. Sandbagging your estimates?"
+        fix = Fix("Tighten SLA", [Edit(big_o.span, format_complexity(d, big_o.var, source=True))])
+        found.append(warning("W417", message, big_o.span, [fix]))
     return found
 
 
-def warning(code: str, message: str, span: Span) -> Diagnostic:
-    return Diagnostic(code, Severity.WARNING, message, span, soft=True)
+def warning(code: str, message: str, span: Span, fixes: list[Fix] | None = None) -> Diagnostic:
+    return Diagnostic(code, Severity.WARNING, message, span, soft=True, fixes=fixes or [])

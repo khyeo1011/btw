@@ -79,16 +79,22 @@ def lex(source: str):
     return _component("lexer").lex(source)
 
 
-def parse(source: str):
-    """Return (program, diagnostics)."""
+def _parse(source: str):
+    """Return (tokens, program, diagnostics)."""
     tokens, comments, lex_diagnostics = lex(source)
     program, parse_diagnostics = _component("parser").parse(tokens, comments)
-    return program, [*lex_diagnostics, *parse_diagnostics]
+    return tokens, program, [*lex_diagnostics, *parse_diagnostics]
+
+
+def parse(source: str):
+    """Return (program, diagnostics)."""
+    _, program, diagnostics = _parse(source)
+    return program, diagnostics
 
 
 def check(source: str, path: str):
     """Return (program, symbols, diagnostics): Implementation Spec 7, passes 1 to 9."""
-    program, diagnostics = parse(source)
+    tokens, program, diagnostics = _parse(source)
     symbols, check_diagnostics = _component("checker").check(program, program.comments)
     diagnostics += check_diagnostics
     try:
@@ -96,7 +102,7 @@ def check(source: str, path: str):
     except NotImplementedError:
         pass  # until the Big O card lands, there are no Big O diagnostics
     else:
-        diagnostics += bigo.check_bigo(program)
+        diagnostics += bigo.check_bigo(program, tokens)  # tokens locate W102's fix
     try:
         suppress = _component("suppress")
     except NotImplementedError:

@@ -46,8 +46,8 @@ and 6.
   (at `:wq`, or at the end of the file without one) with a `(` still open,
   the parser reports "Syntax error: expected `)`, found `:wq`. Even Lisp
   programmers close their parentheses." (or "found end of file. Even Lisp
-  ...") on that token. The joke is the owner's request; the Language Spec
-  catalog doesn't have this message yet. It counts parens the way the lexer does: a
+  ...") on that token. The joke is the owner's request, and Language Spec 11
+  has the row. It counts parens the way the lexer does: a
   `)` with nothing open is ignored. This report is file-level, so it sits
   outside the one-E400-per-statement budget and replaces any other E400 on
   the same token, such as the outermost block's missing `}`. The lexer drops
@@ -95,8 +95,8 @@ and 6.
     sees the source. Spaces come back exactly. A tab inside an annotation
     comes back as a space, and a line break as one space (newlines inside
     parentheses aren't tokens). An unclosed annotation is unverifiable.
-    `O(n^k)` takes k from the INT token's value, so the P2 superscripts work
-    once the lexer turns `²` into CARET plus INT.
+    `O(n^k)` takes k from the INT token's value. The lexer doesn't accept
+    superscripts (the owner dropped them), so `O(n²)` is an E400.
 
 ## Recovery beyond the spec
 
@@ -135,6 +135,16 @@ top of that:
    don't count as the statement's E400, because the parser only sees a
    normal token. A statement can then end up with a lexer E400 and a parser
    E400. No golden test does this.
+4. **Needs a fix (owner decision): cascading E503 after an unclosed `(`.**
+   An unclosed `(` in a parameter list or a global initializer makes the
+   lexer drop every later newline (Language Spec 2.1, NOTES-lexer decision
+   5), so top-level recovery never finds a line starting with `serve` and
+   the program also gets E503 "no server running": three diagnostics for
+   one mistake. Example: `microservice f(n {` followed by a normal `serve`
+   block. The owner wants the E503 gone. Resetting the lexer's paren depth
+   at `{` or `}` would do it, but section 2.1 doesn't allow that yet, so the
+   fix needs a spec change first (parser and lexer cards). Found by the Big
+   O card (NOTES-bigo "Parser findings").
 
 ## Pipes
 

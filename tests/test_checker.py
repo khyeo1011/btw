@@ -11,16 +11,11 @@ from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
 
-# Codes other cards report: Big O (bigo.py) and suppression (suppress.py).
-OTHER_CARDS = {"E417", "W417", "W102", "W508", "W203", "W200", "W304"}
-
 # Goldens that can't match until another card lands: pipes are parsed by the
-# parser card, and the suppressed E403 and W204 need suppress.py.
+# parser card.
 WAITING = {
     "p2_pipes": "pipes (parser card)",
     "p2_e405_pipe_console_log_value": "pipes (parser card)",
-    "p2_w200_works_on_my_machine": "suppression (suppress.py)",
-    "p2_w200_two_problems": "suppression (suppress.py)",
 }
 
 
@@ -48,10 +43,6 @@ def messages(src):
     return [d.message for d in run_check(src)[2]]
 
 
-def without_other_cards(text):
-    return [line for line in text.splitlines() if line.split("[")[1][:4] not in OTHER_CARDS]
-
-
 @pytest.mark.parametrize(
     "program", sorted(GOLDEN.glob("*.btw")), ids=lambda p: p.stem
 )
@@ -66,7 +57,7 @@ def test_golden_diagnostics(program, request):
     ]
     sidecar = program.with_suffix(".diag")
     want = sidecar.read_text(encoding="utf-8") if sidecar.exists() else ""
-    assert without_other_cards("\n".join(got)) == without_other_cards(want)
+    assert got == want.splitlines()
 
 
 def test_valid_program_is_clean():

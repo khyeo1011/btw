@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # setup-uv stopped publishing moving major tags after v7, so pin the
+      # current release exactly.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          # The oldest version pyproject.toml supports (requires-python >=3.12).
+          python-version: "3.12"
+
+      # `btw build` links with gcc (which calls GNU as). The golden runner
+      # skips the native step when gcc is missing, so fail loudly instead.
+      - name: Check native toolchain
+        run: |
+          gcc --version
+          as --version
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest
+
+  whitespace:
+    name: whitespace
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # CLAUDE.md: no trailing whitespace; non-empty files end with exactly
+      # one newline. Checks tracked text files (grep -I skips binary files).
+      - name: Check trailing whitespace and final newlines
+        run: |
+          set -euo pipefail
+          list="$(mktemp)"
+          git ls-files -z | xargs -0 grep -IlZ '' > "$list" || true
+          if [ ! -s "$list" ]; then
+            echo "::error::Found no tracked text files to check."
+            exit 1
+          fi
+          status=0
+          if xargs -0 grep -nIE '[[:space:]]+$' < "$list"; then
+            echo "::error::Trailing whitespace on the lines above."
+            status=1
+          fi
+          while IFS= read -r -d '' f; do
+            if [ -n "$(tail -c 1 "$f")" ]; then
+              echo "::error file=$f::No newline at end of file."
+              status=1
+            elif [ "$(wc -c < "$f")" -ge 2 ] && [ -z "$(tail -c 2 "$f" | tr -d '\n')" ]; then
+              echo "::error file=$f::More than one newline at end of file."
+              status=1
+            fi
+          done < "$list"
+          exit "$status"

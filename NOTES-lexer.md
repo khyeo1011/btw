@@ -47,7 +47,8 @@ Specs: Language Spec 1 and 2, Implementation Spec 4.3 and 5.
 5. **Unclosed `(`** suppresses every later NEWLINE, as section 2.1 says. That
    can make parser recovery worse after an unbalanced paren (everything after
    it is one "line"). Resetting the depth at `{` or `}` would fix it but isn't
-   in the spec. Question for the parser card.
+   in the spec. Question for the parser card. The project owner wants the
+   resulting E503 cascade fixed: see NOTES-parser question 4.
 6. **Non-ASCII outside strings and comments** is an ERROR token per code
    point; an emoji's ERROR token is 2 columns wide.
 7. **`:wq` and `localhost:N`** have no word-boundary check after them:

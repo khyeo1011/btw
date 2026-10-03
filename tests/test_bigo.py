@@ -4,16 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from btw import driver
-from btw.bigo import UNKNOWN, check_bigo, costs, format_complexity, infer
-from btw.diagnostics import Severity
+from btw import ast, driver
+from btw.bigo import UNKNOWN, check_bigo, costs, format_complexity, infer, params_close
+from btw.diagnostics import Edit, Fix, Severity
 from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
 BIG_O_CODES = {"E417", "W417", "W102", "W508", "W203"}
-
-# Goldens whose Big O lines need another card: suppression hides the W102.
-WAITING = {"p2_w200_two_problems": "suppression (suppress.py)"}
 
 
 def program(*services: str):
@@ -52,6 +49,20 @@ LOOP = "doomscroll i < n { git push --force i = i + 1 }"
 )
 def test_format_complexity(degree, var, text):
     assert format_complexity(degree, var) == text
+
+
+@pytest.mark.parametrize(
+    "degree, var, text",
+    [
+        (0, None, "O(1)"),
+        (1, "m", "O(m)"),
+        (2, None, "O(n^2)"),
+        (3, "k", "O(k^3)"),
+        (4, None, "O(n^4)"),
+    ],
+)
+def test_format_complexity_source_has_no_superscripts(degree, var, text):
+    assert format_complexity(degree, var, source=True) == text
 
 
 # Inference: loops and branches
@@ -300,9 +311,7 @@ def test_duplicate_microservice_gets_its_own_verdict():
 
 
 @pytest.mark.parametrize("path", sorted(GOLDEN.glob("*.btw")), ids=lambda p: p.stem)
-def test_golden_big_o_lines(path, request):
-    if path.stem in WAITING:
-        request.applymarker(pytest.mark.xfail(reason=WAITING[path.stem], strict=True))
+def test_golden_big_o_lines(path):
     _, _, found = driver.check(path.read_text(encoding="utf-8"), str(path))
     got = [
         f"{d.span.start.line + 1}:{d.span.start.col + 1}: {d.severity.value}[{d.code}]: {d.message}"
@@ -312,3 +321,309 @@ def test_golden_big_o_lines(path, request):
     sidecar = path.with_suffix(".diag")
     lines = sidecar.read_text(encoding="utf-8").splitlines() if sidecar.exists() else []
     assert got == [line for line in lines if line.split("[")[1][:4] in BIG_O_CODES]
+
+
+# Unclosed `(`: the parser reports it (NOTES-parser, "Unclosed `(`"). That
+# matters here because W102's fix needs the `)` that closes the parameters.
+
+ARCH = "i use arch btw\n"
+SERVE = "serve localhost:3000 {\n}\n:wq\n"
+LISP = " Even Lisp programmers close their parentheses."
+
+
+def span(line: int, col: int, end_line: int, end_col: int) -> Span:
+    return Span(Pos(line, col), Pos(end_line, end_col))
+
+
+def close_paren(found: str, *where: int):
+    """The E400 for a missing `)` found on its own token, with a 0-based span."""
+    return (f"Syntax error: expected `)`, found {found}.", span(*where))
+
+
+def missing_name(*where: int):
+    return ("Syntax error: expected a name, found `{`.", span(*where))
+
+
+def unclosed_at_wq(line: int):
+    """The file-level E400 on `:wq` when a `(` is still open at the end of the program."""
+    return (f"Syntax error: expected `)`, found `:wq`.{LISP}", span(line, 0, line, 3))
+
+
+def unclosed_at_eof(line: int, col: int):
+    return (f"Syntax error: expected `)`, found end of file.{LISP}", span(line, col, line, col))
+
+
+UNCLOSED = {
+    # microservice parameter lists
+    "params_zero_eof": (ARCH + "microservice f(", [unclosed_at_eof(1, 15)]),
+    "params_zero_before_brace": (
+        ARCH + "microservice f( {\n ship it 1\n}\n" + SERVE,
+        [missing_name(1, 16, 1, 17), unclosed_at_wq(6)],
+    ),
+    "params_zero_before_newline": (
+        ARCH + "microservice f(\n{\n ship it 1\n}\n" + SERVE,
+        [missing_name(2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "params_one_eof": (ARCH + "microservice f(n", [unclosed_at_eof(1, 16)]),
+    "params_one_before_brace": (
+        ARCH + "microservice f(n {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 17, 1, 18), unclosed_at_wq(6)],
+    ),
+    "params_one_before_newline": (
+        ARCH + "microservice f(n\n{\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "params_one_before_big_o": (
+        ARCH + "microservice f(n O(n) {\n ship it n\n}\n" + SERVE,
+        [close_paren("`O`, whoever that is", 1, 17, 1, 18), unclosed_at_wq(6)],
+    ),
+    "params_one_before_serve": (
+        ARCH + "microservice f(n\n" + SERVE,
+        [close_paren("`serve`", 2, 0, 2, 5), unclosed_at_wq(4)],
+    ),
+    "params_many_eof": (ARCH + "microservice f(a, b", [unclosed_at_eof(1, 19)]),
+    "params_many_before_brace": (
+        ARCH + "microservice f(a, b, c {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 1, 23, 1, 24), unclosed_at_wq(6)],
+    ),
+    "params_many_trailing_comma": (
+        ARCH + "microservice f(a, b, {\n ship it a\n}\n" + SERVE,
+        [missing_name(1, 21, 1, 22), unclosed_at_wq(6)],
+    ),
+    "params_multiline": (
+        ARCH + "microservice f(a,\n  b,\n  c {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 3, 4, 3, 5), unclosed_at_wq(8)],
+    ),
+    "params_multiline_comment": (
+        ARCH + "microservice f(a, // TODO more\n  b {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 2, 4, 2, 5), unclosed_at_wq(7)],
+    ),
+    # call arguments
+    "call": (
+        ARCH + "serve localhost:3000 {\n f(1\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_many_args": (
+        ARCH + "serve localhost:3000 {\n console.log f(1, 2\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_nested": (
+        ARCH + "serve localhost:3000 {\n console.log f(g(1)\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_in_microservice": (
+        ARCH + "microservice f(n) O(1) {\n ship it g(n\n}\n" + SERVE,
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(6)],
+    ),
+    "call_eof": (ARCH + "serve localhost:3000 {\n console.log f(1", [unclosed_at_eof(2, 16)]),
+    # grouping
+    "group": (
+        ARCH + "serve localhost:3000 {\n console.log (1 + 2\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "group_condition": (
+        ARCH + "serve localhost:3000 {\n vibe check (1 == 1 {\n  console.log 1\n }\n}\n:wq\n",
+        [close_paren("`{`", 2, 20, 2, 21), unclosed_at_wq(6)],
+    ),
+    "group_global": (
+        ARCH + "npm install x = (1 + 2\n" + SERVE,
+        [close_paren("`serve`", 2, 0, 2, 5), unclosed_at_wq(4)],
+    ),
+    "group_eof": (ARCH + "serve localhost:3000 {\n console.log (1", [unclosed_at_eof(2, 15)]),
+    # Big O annotations
+    "big_o_before_brace": (
+        ARCH + "microservice f(n) O(n {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 22, 1, 23), unclosed_at_wq(6)],
+    ),
+    "big_o_before_newline": (
+        ARCH + "microservice f(n) O(n\n{\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "big_o_nested": (
+        ARCH + "microservice f(n) O(log(n) {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 27, 1, 28), unclosed_at_wq(6)],
+    ),
+    "big_o_eof": (ARCH + "microservice f(n) O(n", [unclosed_at_eof(1, 21)]),
+}
+
+
+def syntax_errors(src: str):
+    _, found = driver.parse(src)
+    return [(d.message, d.span) for d in found if d.code == "E400"]
+
+
+@pytest.mark.parametrize("src, expected", UNCLOSED.values(), ids=UNCLOSED.keys())
+def test_unclosed_paren_is_reported(src, expected):
+    assert syntax_errors(src) == expected
+
+
+def test_closed_multiline_params_with_comment_are_clean():
+    src = ARCH + "microservice f(a, // TODO more\n  b\n  ) O(1) {\n ship it a\n}\n" + SERVE
+    assert syntax_errors(src) == []
+
+
+@pytest.mark.parametrize(
+    "src", [src for name, (src, _) in UNCLOSED.items() if name.startswith("params_")]
+)
+def test_unclosed_params_get_no_w102_fix(src):
+    _, _, found = driver.check(src, "test.btw")
+    assert "E400" in [d.code for d in found]
+    [w102] = [d for d in found if d.code == "W102"]
+    assert w102.fixes == []
+
+
+# Quick fixes (P2): Language Spec 11, the Quick fix column
+
+
+def source(*services: str) -> str:
+    return ARCH + "\n".join(services) + "\n" + SERVE
+
+
+def tokens_and_service(src: str):
+    tokens, _, _ = driver.lex(src)
+    prog, _ = driver.parse(src)
+    ms = next(item for item in prog.items if isinstance(item, ast.Microservice))
+    return tokens, ms
+
+
+def bigo_diagnostics(src: str):
+    tokens, _, _ = driver.lex(src)
+    prog, _ = driver.parse(src)
+    return check_bigo(prog, tokens)
+
+
+def utf16_index(src: str, pos: Pos) -> int:
+    """The string index of a 0-based line and UTF-16 column."""
+    index = sum(len(line) + 1 for line in src.split("\n")[: pos.line])
+    units = 0
+    while units < pos.col:
+        units += 2 if ord(src[index]) > 0xFFFF else 1
+        index += 1
+    return index
+
+
+def apply_fix(src: str, fix: Fix) -> str:
+    for edit in sorted(fix.edits, key=lambda e: e.span.start, reverse=True):
+        start, end = utf16_index(src, edit.span.start), utf16_index(src, edit.span.end)
+        src = src[:start] + edit.text + src[end:]
+    return src
+
+
+LINEAR = " npm install i = 0\n doomscroll i < n { git push --force i = i + 1 }"
+QUADRATIC = (
+    " npm install i = 0\n doomscroll i < n {\n"
+    "  npm install j = 0\n  doomscroll j < n { git push --force j = j + 1 }\n"
+    "  git push --force i = i + 1\n }"
+)
+CUBIC = (
+    " npm install i = 0\n doomscroll i < n {\n"
+    "  npm install j = 0\n  doomscroll j < n {\n"
+    "   npm install k = 0\n   doomscroll k < n { git push --force k = k + 1 }\n"
+    "   git push --force j = j + 1\n  }\n"
+    "  git push --force i = i + 1\n }"
+)
+
+
+@pytest.mark.parametrize(
+    "service, close",
+    [
+        ("microservice f(n) {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n){\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f() {\n ship it 1\n}", span(1, 15, 1, 16)),
+        ("microservice f( ) {\n ship it 1\n}", span(1, 16, 1, 17)),
+        ("microservice f(a, // TODO x\n   b\n  ) {\n ship it a\n}", span(3, 2, 3, 3)),
+        ("microservice f(n)\n{\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n)", span(1, 16, 1, 17)),
+        ("microservice f(n) junk {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(a b) {\n ship it a\n}", span(1, 18, 1, 19)),
+        ("microservice f(n) O(1) {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n {\n ship it n\n}", None),
+        ("microservice f(n\n{\n ship it n\n}", None),
+        ("microservice f( {\n ship it 1\n}", None),
+        ("microservice f(n O(n) {\n ship it n\n}", None),
+    ],
+    ids=[
+        "space", "no_space", "zero", "zero_spaced", "multiline_comment", "brace_next_line",
+        "no_body", "junk", "bad_param", "annotated", "missing", "missing_newline",
+        "missing_zero", "missing_before_big_o",
+    ],
+)
+def test_params_close(service, close):
+    assert params_close(*tokens_and_service(source(service))) == close
+
+
+@pytest.mark.parametrize("tail", ["microservice f(", "microservice f(a, b"])
+def test_params_close_at_end_of_file(tail):
+    assert params_close(*tokens_and_service(ARCH + tail)) is None
+
+
+def test_w102_fix_linear():
+    [d] = bigo_diagnostics(source(f"microservice count(n) {{\n{LINEAR}\n}}"))
+    assert d.fixes == [Fix("Add SLA O(n)", [Edit(span(1, 21, 1, 21), " O(n)")])]
+
+
+def test_w102_fix_constant():
+    [d] = bigo_diagnostics(source("microservice f() {\n ship it 1\n}"))
+    assert d.fixes == [Fix("Add SLA O(1)", [Edit(span(1, 16, 1, 16), " O(1)")])]
+
+
+def test_w102_fix_quadratic_inserts_source_text():
+    [d] = bigo_diagnostics(source(f"microservice f(n) {{\n doomscroll LGTM {{\n{LINEAR}\n }}\n}}"))
+    assert d.fixes == [Fix("Add SLA O(n²)", [Edit(span(1, 17, 1, 17), " O(n^2)")])]
+
+
+def test_w102_without_tokens_has_no_fix():
+    [d] = check_bigo(program(f"microservice count(n) {{\n{LINEAR}\n}}"))
+    assert d.code == "W102" and d.fixes == []
+
+
+def test_driver_check_attaches_the_w102_fix():
+    _, _, found = driver.check(source("microservice f() {\n ship it 1\n}"), "test.btw")
+    [d] = [d for d in found if d.code == "W102"]
+    assert d.fixes == [Fix("Add SLA O(1)", [Edit(span(1, 16, 1, 16), " O(1)")])]
+
+
+def test_e417_fix():
+    [d] = check_bigo(program(f"microservice f(n) O(1) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
+    assert d.fixes == [Fix("Update SLA to O(n²)", [Edit(span(1, 18, 1, 22), "O(n^2)")])]
+
+
+def test_e417_fix_uses_the_annotation_variable():
+    [d] = check_bigo(program(f"microservice f(m) O(m) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
+    assert d.fixes == [Fix("Update SLA to O(m²)", [Edit(span(1, 18, 1, 22), "O(m^2)")])]
+
+
+def test_w417_fix():
+    [d] = check_bigo(program("microservice f(n) O(n^4) {\n ship it n\n}"))
+    assert d.fixes == [Fix("Tighten SLA", [Edit(span(1, 18, 1, 24), "O(1)")])]
+
+
+def test_w417_fix_uses_the_annotation_variable():
+    [d] = check_bigo(program(f"microservice f(m) O(m^3) {{\n {LOOP}\n}}"))
+    assert d.fixes == [Fix("Tighten SLA", [Edit(span(1, 18, 1, 24), "O(m)")])]
+
+
+@pytest.mark.parametrize(
+    "service, code",
+    [
+        (f"microservice count(n) {{\n{LINEAR}\n}}", "W102"),
+        (f"microservice count(n){{\n{LINEAR}\n}}", "W102"),
+        ("microservice f() {\n ship it 1\n}", "W102"),
+        ("microservice f(a, // TODO 🚀 later\n  b\n  ) {\n ship it a + b\n}", "W102"),
+        (f"microservice f(n) O(1) {{\n{LINEAR}\n}}", "E417"),
+        ("microservice f(n) O(n^4) {\n ship it n\n}", "W417"),
+        (f"microservice f(n) O(n^3) {{\n{LINEAR}\n}}", "W417"),
+        (f"microservice f(n) {{\n{QUADRATIC}\n}}", "W102"),
+        (f"microservice f(n) O(n) {{\n{CUBIC}\n}}", "E417"),
+        (f"microservice f(n) O(n^4) {{\n{QUADRATIC}\n}}", "W417"),
+    ],
+    ids=["w102_linear", "w102_no_space", "w102_constant", "w102_multiline", "e417", "w417_constant",
+         "w417_linear", "w102_quadratic", "e417_cubic", "w417_quadratic"],
+)
+def test_fix_round_trip(service, code):
+    src = source(service)
+    _, _, before = driver.check(src, "test.btw")
+    assert [d.code for d in before] == [code]
+    [fix] = before[0].fixes
+    _, _, after = driver.check(apply_fix(src, fix), "test.btw")
+    assert after == []
