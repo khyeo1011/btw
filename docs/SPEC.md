@@ -5,6 +5,8 @@
 
 **Tiers:** P0 = must have for the demo · P1 = should have · P2 = stretch. Untagged means P0.
 
+**Implementation Spec:** this file is the Language Spec. "Implementation Spec section N" refers to `docs/IMPL_SPEC.md`.
+
 </aside>
 
 ---
