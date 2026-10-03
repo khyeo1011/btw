@@ -1,4 +1,4 @@
-"""One test per tests/golden/*.btw, following the runner steps in NOTES-harness.md."""
+"""One test per tests/golden/*.btw, following the runner in Implementation Spec 13."""
 
 import shutil
 import subprocess
@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 GOLDEN = Path(__file__).parent / "golden"
-TIMEOUT = 60
+TIMEOUT = 5
+RUN_SIDECARS = (".out", ".err", ".exit")
 
 
 def tier(program: Path) -> int:
@@ -25,11 +26,9 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("program", programs, ids=[p.stem for p in programs])
 
 
-def btw(*args: str) -> subprocess.CompletedProcess:
+def btw(*args: str, timeout: float | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "btw", *args],
-        capture_output=True,
-        timeout=TIMEOUT,
+        [sys.executable, "-m", "btw", *args], capture_output=True, timeout=timeout
     )
 
 
@@ -63,42 +62,46 @@ def compare_run(program: Path, result: subprocess.CompletedProcess, blessing: bo
         return
     assert stdout == expected(program, ".out")
     assert stderr == expected(program, ".err")
-    assert result.returncode == int(expected(program, ".exit"))
+    assert result.returncode == int(expected(program, ".exit") or "0")
 
 
 def test_golden(program: Path, request, tmp_path: Path):
     blessing = request.config.getoption("--bless")
     path = str(program)
 
-    # Step 1: diagnostics.
+    # 1. Diagnostics, with the path prefix stripped.
     result = btw("check", "--format", "short", path)
     require_ran(result, "btw check")
     diagnostics = result.stdout.decode("utf-8").replace(f"{path}:", "")
+    want = expected(program, ".diag")
     if blessing:
         bless(program, ".diag", diagnostics)
     else:
-        want = expected(program, ".diag")
         assert diagnostics == want
-        has_error = any(": error " in line for line in want.splitlines())
+    has_error = any(": error[" in line for line in want.splitlines())
+    if not blessing:
         assert result.returncode == (1 if has_error else 0)
 
-    # Step 2: check-only programs stop here.
-    if not program.with_suffix(".exit").exists():
+    # 2. Expected errors, or a check-only program: stop here.
+    if has_error or not any(program.with_suffix(s).exists() for s in RUN_SIDECARS):
         return
 
-    # Step 3: the interpreter.
-    result = btw("run", path)
+    # 3. The interpreter.
+    result = btw("run", path, timeout=TIMEOUT)
     require_ran(result, "btw run")
     compare_run(program, result, blessing)
 
-    # Step 4: the native backend, compared against the same expectations.
-    if blessing or shutil.which("gcc") is None:
+    # 4. The native binary, compared against the same expectations.
+    if blessing:
         return
+    if shutil.which("gcc") is None:
+        pytest.skip("native: gcc not found")
     binary = tmp_path / program.stem
     result = btw("build", "--format", "short", "-o", str(binary), path)
-    if result.returncode == 2 and b"not implemented yet" in result.stderr:
-        pytest.skip("native backend not implemented yet")
-    if b" E501: " in result.stderr:
-        pytest.skip("uses a construct the native backend doesn't support (E501)")
-    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    stderr = result.stderr.decode("utf-8", "replace")
+    if result.returncode == 2 and "not implemented yet" in stderr:
+        pytest.xfail("native: not yet (backend not implemented)")
+    if "[E501]: " in stderr:
+        pytest.xfail("native: not yet (E501)")
+    assert result.returncode == 0, stderr
     compare_run(program, subprocess.run([binary], capture_output=True, timeout=TIMEOUT), False)
