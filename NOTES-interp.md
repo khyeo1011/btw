@@ -64,22 +64,5 @@ Files: `src/btw/interp.py`, `tests/test_interp.py`. Specs: Language Spec 5,
   nested `touch grass`, globals, and git history (revert, log, the 16-commit
   cap, the exit 128 error).
 - Golden tests: every program with an `.out`, `.err` or `.exit` file passes
-  the interpreter step, including the P2 git history ones, except
-  `p2_pipes`. That one stops at step 1 (`btw check`) because the parser
-  doesn't parse `|` yet (E400 "expected end of line, found `|`").
-  `p2_e405_pipe_console_log_value` fails at the same step for the same
-  reason and has no run sidecars. `tests/test_checker.py` lists both under
-  `WAITING` for the parser card. Neither failure is in the interpreter.
-  `tests/test_golden.py` now has the same `WAITING` list, so both are xfails
-  and CI is green. Once pipes parse, both fail with "matches now: remove it
-  from WAITING", and the parser card deletes the two entries.
-- Every native step is xfailed ("native: not yet") until the codegen card
-  lands.
-
-## For other cards
-
-- **Parser card:** once pipes parse, `p2_pipes` should pass with no
-  interpreter change, since it only sees the desugared `Call` and `Print`.
-- **Branch name.** This card was developed on
-  `claude/tree-walking-interpreter-1mi5sv`, the branch the session assigned,
-  not on a `feature/NAME` branch as CLAUDE.md asks.
+  the interpreter step, pipes and git history included. The native backend
+  is compared against the same files (NOTES-codegen).

@@ -155,9 +155,7 @@ anywhere else.
 
 ## Status
 
-- `uv run pytest tests/test_parser.py`: 212 pass, plus the 2 pipe xfails.
-  The tests cover every case on the card, and for every
-  `tests/golden/*.btw` they check that the lexer and parser together give
-  exactly the E400, E408 and W208 lines in its `.diag`.
-- `tests/test_golden.py` still fails everywhere with "checker is not
-  implemented yet".
+- `uv run pytest tests/test_parser.py` passes. The tests cover every case on
+  the card, and for every `tests/golden/*.btw` they check that the lexer and
+  parser together give exactly the E400, E408 and W208 lines in its `.diag`.
+- Question 4 (the E503 cascade after an unclosed `(`) is still open.

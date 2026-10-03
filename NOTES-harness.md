@@ -52,12 +52,11 @@ decided where that spec is silent, the golden test list, and open questions.
   2, showing btw's stderr. Native step: xfail ("native: not yet") for E501 and
   while the backend isn't implemented; skip when gcc isn't installed. `--bless`
   rewrites `.diag`, `.out`, `.err` and `.exit` (steps 1 and 3 only).
-- **`WAITING` goldens.** `tests/test_golden.py` lists goldens whose
-  diagnostics can't match until another card lands (now: `p2_pipes` and
-  `p2_e405_pipe_console_log_value`, waiting on the parser for pipes). Step 1
-  is an xfail while the diagnostics differ, and a hard failure ("matches
-  now: remove it from WAITING") once they match, so CI goes red the moment
-  an entry is stale. The card that makes one match removes its entry.
+- **`WAITING` goldens.** `tests/test_golden.py` can list goldens whose
+  diagnostics can't match until another card lands. Step 1 is an xfail while
+  the diagnostics differ, and a hard failure ("matches now: remove it from
+  WAITING") once they match, so CI goes red the moment an entry is stale.
+  The list is empty now.
 - **Duplicate diagnostics** (same code and span): the first one reported is
   kept, and the driver collects lexer, parser, checker, Big O diagnostics in
   that order. This settles which E400 survives for an unexpected character.
@@ -233,8 +232,9 @@ now says the same.
     testable.
 17. **`codegen.gen` return value (Implementation Spec 10.1).** It says `gen`
     returns the assembly text and that E501 comes "before any assembly is
-    written", but not how E501 reaches the driver. The driver expects
-    `(text, diagnostics)`.
+    written", but not how E501 reaches the driver. **Resolved:** `gen`
+    returns `(text, diagnostics)`, with `""` as the text when there's an
+    E501 (NOTES-codegen).
 18. **The spec's short-format example (Implementation Spec 3)** puts
     `p0_e404_undeclared_var` at 4:17. Ours is 3:17 because our program has no
     blank or extra line before it; the Test Corpus page's version of the
