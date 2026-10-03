@@ -82,6 +82,9 @@ not run**. Each piece it depends on was checked separately:
   vscode-textmate and vscode-oniguruma, the engine VS Code uses. Every keyword
   kind that appears (19) gets its 12.2 scope, and no keyword-like word outside
   a string or comment is left plain, except the one below.
+- **Against the lexer.** For every golden file and `test/syntax.test.btw`,
+  the keyword tokens from `btw tokens` match the grammar's keyword scopes
+  exactly (position, text and category): 724 tokens, no differences.
 - **extension.js** was loaded with stubbed `vscode` and
   `vscode-languageclient` modules: it reads `btw.serverPath` (default
   `btw-lsp`), uses stdio, selects `file` documents of language `btw`, creates
