@@ -62,7 +62,8 @@ ITEM_START = {K.NPM_INSTALL, K.NPM_INSTALL_G, K.MICROSERVICE, K.SERVE}
 EXPR_START = {K.INT, K.STRING, K.LGTM, K.NOT_FOUND, K.IDENT, K.LPAREN, K.BANG, K.MINUS}
 
 # Binary operators: precedence level (Language Spec 3.1) and whether the
-# level is non-associative. Pipes (level 1) belong to another card.
+# level is non-associative. Pipes (level 1) are handled apart, in `expr`.
+PIPE_LEVEL = 1
 INFIX: dict[K, tuple[int, bool]] = {
     K.OR_OR: (2, False),
     K.AND_AND: (3, False),
@@ -86,6 +87,18 @@ E408 = "Error: program never exited. Classic Vim user."
 W208 = "208 Already Reported: we know you use Arch."
 UNCLOSED_PAREN_JOKE = "Even Lisp programmers close their parentheses."
 E500 = "It works on my machine. Unfortunately, this is not my machine."
+VOID_PIPE = "`console.log` returns nothing. It's void, like my weekend plans."
+
+
+@dataclasses.dataclass
+class _PipePrint(ast.ErrorExpr):
+    """A pipeline ending in `console.log` (Language Spec 9.4), before the parser knows
+    where it stands. As a whole expression statement it becomes a Print; anywhere else
+    it's E405 and an ErrorExpr. It never reaches the AST.
+    """
+
+    value: ast.Expr = dataclasses.field(kw_only=True)
+    keyword: Span = dataclasses.field(kw_only=True)  # the `console.log` stage
 
 
 def found(tok: Token) -> str:
@@ -484,7 +497,9 @@ class _Parser:
                 self.arch_line()
                 return None
             case kind if kind in EXPR_START:
-                expr = self.expr()
+                expr = self.pipeline()
+                if isinstance(expr, _PipePrint):
+                    return ast.Print(expr.value, span=self.span_from(start))
                 return ast.ExprStmt(expr, span=self.span_from(start))
             case K.LBRACE:
                 # A stray block: report it, then parse it so its braces stay balanced.
@@ -573,12 +588,27 @@ class _Parser:
     # Expressions
 
     def expr(self, min_level: int = 0) -> ast.Expr:
-        """Pratt loop over binary operators of at least `min_level`."""
+        """An expression used as a value: a pipe into `console.log` is E405 here."""
+        return self.void_check(self.pipeline(min_level))
+
+    def void_check(self, expr: ast.Expr) -> ast.Expr:
+        if isinstance(expr, _PipePrint):
+            self.diags.append(Diagnostic("E405", Severity.ERROR, VOID_PIPE, expr.keyword))
+            return ast.ErrorExpr(span=expr.span)
+        return expr
+
+    def pipeline(self, min_level: int = 0) -> ast.Expr:
+        """Pratt loop over binary operators of at least `min_level`, then pipe stages.
+
+        The result can be a `_PipePrint`; only `statement_body` accepts one as is.
+        """
         start = self.peek().span.start
         lhs = self.prefix()
         chained_level = None
         while True:
             op = self.peek()
+            if op.kind is K.PIPE and min_level <= PIPE_LEVEL:
+                return self.stages(start, lhs)
             if op.kind not in INFIX:
                 break
             level, non_assoc = INFIX[op.kind]
@@ -631,9 +661,37 @@ class _Parser:
                 self.unexpected("an expression")
                 return self.error_expr()
 
-    def call(self, name: Token) -> ast.Call:
+    def stages(self, start: Pos, value: ast.Expr) -> ast.Expr:
+        """`value | f | g(y) | console.log` (Language Spec 9.4).
+
+        Each stage becomes a Call with the piped value as its first argument and the
+        stage's own span; a final `console.log` makes a `_PipePrint`. Nothing but
+        another `|` can follow a stage, since pipes have the lowest precedence.
+        """
+        while self.at(K.PIPE):
+            self.advance()
+            value = self.void_check(value)  # only the last stage may be `console.log`
+            tok = self.peek()
+            match tok.kind:
+                case K.IDENT:
+                    self.advance()
+                    if self.at(K.LPAREN):
+                        value = self.call(tok, first=value)
+                    else:
+                        callee = ast.Ident(tok.text, span=tok.span)
+                        value = ast.Call(callee, [value], span=tok.span)
+                case K.CONSOLE_LOG:
+                    self.advance()
+                    value = _PipePrint(span=self.span_from(start), value=value, keyword=tok.span)
+                case _:
+                    self.unexpected("a name")
+                    return ast.ErrorExpr(span=self.span_from(start))
+        return value
+
+    def call(self, name: Token, first: ast.Expr | None = None) -> ast.Call:
+        """`f(args)`. A pipe stage passes the piped value as `first`."""
         self.advance()  # (
-        args: list[ast.Expr] = []
+        args: list[ast.Expr] = [] if first is None else [first]
         if not self.at(K.RPAREN):
             while True:
                 args.append(self.expr())

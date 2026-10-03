@@ -12,10 +12,6 @@ from btw.tokens import Token, TokenKind as K
 GOLDEN = Path(__file__).parent / "golden"
 LISP = " Even Lisp programmers close their parentheses."
 
-# Pipes belong to another card: until it lands, `|` is an unexpected token.
-PIPE_PROGRAMS = {"p2_pipes", "p2_e405_pipe_console_log_value"}
-
-
 def parse_src(src):
     tokens, comments, lex_diags = lex(src)
     program, diags = parse(tokens, comments)
@@ -413,6 +409,97 @@ def test_comparisons_are_non_associative(src):
     assert isinstance(program.items[0].body.stmts[0].value, ast.ErrorExpr)
 
 
+# Pipes (Language Spec 9.4)
+
+VOID = "`console.log` returns nothing. It's void, like my weekend plans."
+
+
+@pytest.mark.parametrize(
+    "src, tree",
+    [
+        ("a | f", "f(a)"),
+        ("a | f | g(y)", "g(f(a), y)"),
+        ("a | f() | g(1, 2)", "g(f(a), 1, 2)"),
+        ("a + 1 | f", "f((a + 1))"),
+        ("a || b | f", "f((a || b))"),
+        ("-a | f", "f((-a))"),
+        ("(a | f) + 1", "(f(a) + 1)"),
+        ("f(a | g, 2)", "f(g(a), 2)"),
+        ('"x" | f', "f('x')"),
+    ],
+)
+def test_pipes_desugar_into_calls(src, tree):
+    assert sexp(expr(src)) == tree
+
+
+def test_pipe_stages_keep_their_own_spans():
+    e = expr("3 | double | add(10)")
+    assert e.span == sp(3, 26, 3, 33)
+    assert e.callee.span == sp(3, 26, 3, 29)
+    inner = e.args[0]
+    assert inner.span == sp(3, 17, 3, 23)
+    assert inner.callee == ast.Ident("double", span=sp(3, 17, 3, 23))
+    assert inner.args[0].span == sp(3, 13, 3, 14)
+
+
+def test_pipe_into_console_log_is_a_print():
+    (stmt,) = stmts("3 | double | add(10) | console.log")
+    assert isinstance(stmt, ast.Print)
+    assert sexp(stmt.value) == "add(double(3), 10)"
+    assert stmt.span == sp(3, 1, 3, 35)
+
+
+def test_string_piped_into_console_log():
+    (stmt,) = stmts('"piped" | console.log')
+    assert isinstance(stmt, ast.Print)
+    assert stmt.value == ast.StrLit("piped", span=sp(3, 1, 3, 8))
+
+
+def test_pipe_without_console_log_is_an_expression_statement():
+    (stmt,) = stmts("3 | f")
+    assert isinstance(stmt, ast.ExprStmt)
+    assert sexp(stmt.expr) == "f(3)"
+
+
+def test_pipes_in_values_and_conditions():
+    decl, cond = stmts("npm install v = 1 + 2 | double\nvibe check (x | f) == 1 { }")
+    assert sexp(decl.value) == "double((1 + 2))"
+    assert isinstance(cond, ast.If)
+
+
+@pytest.mark.parametrize(
+    "body, col",
+    [
+        ("npm install y = 5 | console.log", 21),
+        ("console.log 5 | console.log", 17),
+        ("ship it 5 | console.log", 13),
+        ("git push --force y = 5 | console.log", 26),
+        ("f(5 | console.log)", 7),
+        ("5 | console.log | f", 5),
+    ],
+)
+def test_pipe_into_console_log_used_as_a_value(body, col):
+    assert errors(wrap(body)) == [(3, col, "E405", VOID)]
+
+
+def test_void_pipe_value_is_an_error_expr():
+    program, _, _ = parse_src(wrap("npm install y = 5 | console.log"))
+    (decl,) = program.items[0].body.stmts
+    assert decl.value == ast.ErrorExpr(span=sp(3, 17, 3, 32))
+
+
+def test_only_a_pipe_can_follow_a_stage():
+    assert errors(wrap("a | f + 1")) == [
+        (3, 7, "E400", "Syntax error: expected end of line, found `+`.")
+    ]
+
+
+def test_pipe_stage_must_be_a_name():
+    assert errors(wrap("a | 3")) == [
+        (3, 5, "E400", "Syntax error: expected a name, found a magic number `3`.")
+    ]
+
+
 # Syntax errors and recovery
 
 
@@ -747,11 +834,7 @@ def test_format_ast():
 
 
 def golden_programs():
-    pipes = pytest.mark.xfail(reason="pipes are another card", strict=True)
-    return [
-        pytest.param(p, id=p.stem, marks=[pipes] if p.stem in PIPE_PROGRAMS else [])
-        for p in sorted(GOLDEN.glob("*.btw"))
-    ]
+    return [pytest.param(p, id=p.stem) for p in sorted(GOLDEN.glob("*.btw"))]
 
 
 @pytest.mark.parametrize("program", golden_programs())
