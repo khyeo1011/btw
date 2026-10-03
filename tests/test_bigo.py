@@ -312,3 +312,142 @@ def test_golden_big_o_lines(path, request):
     sidecar = path.with_suffix(".diag")
     lines = sidecar.read_text(encoding="utf-8").splitlines() if sidecar.exists() else []
     assert got == [line for line in lines if line.split("[")[1][:4] in BIG_O_CODES]
+
+
+# Unclosed `(`: the parser reports it (NOTES-parser, "Unclosed `(`"). That
+# matters here because W102's fix needs the `)` that closes the parameters.
+
+ARCH = "i use arch btw\n"
+SERVE = "serve localhost:3000 {\n}\n:wq\n"
+LISP = " Even Lisp programmers close their parentheses."
+
+
+def span(line: int, col: int, end_line: int, end_col: int) -> Span:
+    return Span(Pos(line, col), Pos(end_line, end_col))
+
+
+def close_paren(found: str, *where: int):
+    """The E400 for a missing `)` found on its own token, with a 0-based span."""
+    return (f"Syntax error: expected `)`, found {found}.", span(*where))
+
+
+def missing_name(*where: int):
+    return ("Syntax error: expected a name, found `{`.", span(*where))
+
+
+def unclosed_at_wq(line: int):
+    """The file-level E400 on `:wq` when a `(` is still open at the end of the program."""
+    return (f"Syntax error: expected `)`, found `:wq`.{LISP}", span(line, 0, line, 3))
+
+
+def unclosed_at_eof(line: int, col: int):
+    return (f"Syntax error: expected `)`, found end of file.{LISP}", span(line, col, line, col))
+
+
+UNCLOSED = {
+    # microservice parameter lists
+    "params_zero_eof": (ARCH + "microservice f(", [unclosed_at_eof(1, 15)]),
+    "params_zero_before_brace": (
+        ARCH + "microservice f( {\n ship it 1\n}\n" + SERVE,
+        [missing_name(1, 16, 1, 17), unclosed_at_wq(6)],
+    ),
+    "params_zero_before_newline": (
+        ARCH + "microservice f(\n{\n ship it 1\n}\n" + SERVE,
+        [missing_name(2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "params_one_eof": (ARCH + "microservice f(n", [unclosed_at_eof(1, 16)]),
+    "params_one_before_brace": (
+        ARCH + "microservice f(n {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 17, 1, 18), unclosed_at_wq(6)],
+    ),
+    "params_one_before_newline": (
+        ARCH + "microservice f(n\n{\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "params_one_before_big_o": (
+        ARCH + "microservice f(n O(n) {\n ship it n\n}\n" + SERVE,
+        [close_paren("`O`, whoever that is", 1, 17, 1, 18), unclosed_at_wq(6)],
+    ),
+    "params_one_before_serve": (
+        ARCH + "microservice f(n\n" + SERVE,
+        [close_paren("`serve`", 2, 0, 2, 5), unclosed_at_wq(4)],
+    ),
+    "params_many_eof": (ARCH + "microservice f(a, b", [unclosed_at_eof(1, 19)]),
+    "params_many_before_brace": (
+        ARCH + "microservice f(a, b, c {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 1, 23, 1, 24), unclosed_at_wq(6)],
+    ),
+    "params_many_trailing_comma": (
+        ARCH + "microservice f(a, b, {\n ship it a\n}\n" + SERVE,
+        [missing_name(1, 21, 1, 22), unclosed_at_wq(6)],
+    ),
+    "params_multiline": (
+        ARCH + "microservice f(a,\n  b,\n  c {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 3, 4, 3, 5), unclosed_at_wq(8)],
+    ),
+    "params_multiline_comment": (
+        ARCH + "microservice f(a, // TODO more\n  b {\n ship it a\n}\n" + SERVE,
+        [close_paren("`{`", 2, 4, 2, 5), unclosed_at_wq(7)],
+    ),
+    # call arguments
+    "call": (
+        ARCH + "serve localhost:3000 {\n f(1\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_many_args": (
+        ARCH + "serve localhost:3000 {\n console.log f(1, 2\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_nested": (
+        ARCH + "serve localhost:3000 {\n console.log f(g(1)\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "call_in_microservice": (
+        ARCH + "microservice f(n) O(1) {\n ship it g(n\n}\n" + SERVE,
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(6)],
+    ),
+    "call_eof": (ARCH + "serve localhost:3000 {\n console.log f(1", [unclosed_at_eof(2, 16)]),
+    # grouping
+    "group": (
+        ARCH + "serve localhost:3000 {\n console.log (1 + 2\n}\n:wq\n",
+        [close_paren("`}`", 3, 0, 3, 1), unclosed_at_wq(4)],
+    ),
+    "group_condition": (
+        ARCH + "serve localhost:3000 {\n vibe check (1 == 1 {\n  console.log 1\n }\n}\n:wq\n",
+        [close_paren("`{`", 2, 20, 2, 21), unclosed_at_wq(6)],
+    ),
+    "group_global": (
+        ARCH + "npm install x = (1 + 2\n" + SERVE,
+        [close_paren("`serve`", 2, 0, 2, 5), unclosed_at_wq(4)],
+    ),
+    "group_eof": (ARCH + "serve localhost:3000 {\n console.log (1", [unclosed_at_eof(2, 15)]),
+    # Big O annotations
+    "big_o_before_brace": (
+        ARCH + "microservice f(n) O(n {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 22, 1, 23), unclosed_at_wq(6)],
+    ),
+    "big_o_before_newline": (
+        ARCH + "microservice f(n) O(n\n{\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 2, 0, 2, 1), unclosed_at_wq(7)],
+    ),
+    "big_o_nested": (
+        ARCH + "microservice f(n) O(log(n) {\n ship it n\n}\n" + SERVE,
+        [close_paren("`{`", 1, 27, 1, 28), unclosed_at_wq(6)],
+    ),
+    "big_o_eof": (ARCH + "microservice f(n) O(n", [unclosed_at_eof(1, 21)]),
+}
+
+
+def syntax_errors(src: str):
+    _, found = driver.parse(src)
+    return [(d.message, d.span) for d in found if d.code == "E400"]
+
+
+@pytest.mark.parametrize("src, expected", UNCLOSED.values(), ids=UNCLOSED.keys())
+def test_unclosed_paren_is_reported(src, expected):
+    assert syntax_errors(src) == expected
+
+
+def test_closed_multiline_params_with_comment_are_clean():
+    src = ARCH + "microservice f(a, // TODO more\n  b\n  ) O(1) {\n ship it a\n}\n" + SERVE
+    assert syntax_errors(src) == []

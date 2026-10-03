@@ -75,3 +75,29 @@ cost the callee's degree, mutual recursion) in one implementation.
 - Checker card: `tests/test_checker.py` filters the Big O codes out through
   `OTHER_CARDS`, so this card causes no unexpected passes there. Those codes
   can come out of `OTHER_CARDS` now.
+
+## Open questions / parser
+
+The parser reports every unclosed `(`, checked in `tests/test_bigo.py`
+(`UNCLOSED`, 26 cases): parameter lists with zero, one and many parameters,
+on several lines, with a comment inside, with the `)` missing before `{`, a
+newline, `O(`, `serve` or the end of file; call arguments; grouping; and
+`O(` annotations. Each gets the file-level E400 "Syntax error: expected `)`,
+found `:wq`. Even Lisp programmers close their parentheses." (or "found end
+of file. ...") and, unless the file ends right there, a local E400 on the
+token where the `)` should have been. Nothing in `parser.py` needs fixing
+for this card; these are for the parser card:
+
+1. **Missing name or `)`?** `microservice f( {` and `microservice f(a, b, {`
+   get "expected a name, found `{`." locally, where `f(n {` gets
+   "expected `)`". After `(` the grammar (Language Spec 3) accepts either a
+   name or `)`, so both are defensible and the spec doesn't pick. The
+   file-level `)` error is there either way.
+2. **Cascading E503.** An unclosed `(` in a parameter list or a global
+   initializer makes the lexer drop every later newline (Language Spec 2.1),
+   so top-level recovery never sees a line that starts with `serve` and the
+   program also gets E503 "no server running". That's three diagnostics for
+   one mistake. NOTES-lexer item 5 already asks the parser card about it.
+3. **Catalog text.** The "Even Lisp programmers close their parentheses."
+   suffix is the project owner's decision (NOTES-parser), not in the
+   Language Spec 11 catalog yet. The catalog should get the row.
