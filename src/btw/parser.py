@@ -15,7 +15,7 @@ import dataclasses
 from enum import Enum
 
 from btw import ast
-from btw.diagnostics import Diagnostic, Severity
+from btw.diagnostics import Diagnostic, Edit, Fix, Severity
 from btw.span import Pos, Span
 from btw.tokens import Comment, Token, TokenKind as K
 
@@ -256,13 +256,24 @@ class _Parser:
         return Span(first.span.start, self.peek().span.end)
 
     def missing_wq(self) -> None:
-        """E408 on the last token that isn't a newline or the end of file (Language Spec 4)."""
-        last = self.toks[-1]
-        for tok in reversed(self.toks):
-            if tok.kind not in (K.NEWLINE, K.EOF):
-                last = tok
+        """E408 on the last token that isn't a newline or the end of file (Language Spec 4).
+
+        Its quick fix (P2) puts `:wq` on a line of its own after that token's
+        line: at the newline that ends it (after any trailing comment), or at
+        the end of file.
+        """
+        last, end = self.toks[-1], self.toks[-1]
+        for i in range(len(self.toks) - 1, -1, -1):
+            if self.toks[i].kind not in (K.NEWLINE, K.EOF):
+                last, end = self.toks[i], self.toks[i + 1]
                 break
-        self.diags.append(Diagnostic("E408", Severity.ERROR, E408, last.span))
+        at = Span(end.span.start, end.span.start)
+        if end.kind is K.NEWLINE:
+            text = "\n:wq"
+        else:
+            text = ":wq\n" if end.span.start.col == 0 else "\n:wq\n"
+        fix = Fix("Exit Vim", [Edit(at, text)])
+        self.diags.append(Diagnostic("E408", Severity.ERROR, E408, last.span, fixes=[fix]))
 
     def item(self) -> ast.Item | None:
         saved, self.errored = self.errored, False

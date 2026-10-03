@@ -14,7 +14,7 @@ from enum import Enum
 
 from btw import ast
 from btw.ast import Type
-from btw.diagnostics import Diagnostic, Severity
+from btw.diagnostics import Diagnostic, Edit, Fix, Severity
 from btw.span import Pos, Span
 from btw.tokens import Comment, CommentKind
 
@@ -217,7 +217,9 @@ class Checker:
     def structure(self, program: ast.Program) -> None:
         if not program.has_arch:
             # Line 1 in full: a span to the start of line 2 covers the whole line.
-            self.error("E426", E426, Span(Pos(0, 0), Pos(1, 0)))
+            start = Span(Pos(0, 0), Pos(0, 0))
+            fix = Fix("Install Arch", [Edit(start, "i use arch btw\n")])
+            self.error("E426", E426, Span(Pos(0, 0), Pos(1, 0)), fixes=[fix])
         if program.trailing_span is not None:
             self.error("E410", E410, program.trailing_span)
         serves = [item for item in program.items if isinstance(item, ast.Serve)]
@@ -392,7 +394,9 @@ class Checker:
         self.warning("W100", W100, keyword_span(stmt.span.start, "sudo"))
 
     def e403(self, span: Span, suggestion: str) -> None:
-        self.error("E403", E403, span, soft=True, help=f"try `{suggestion}`")
+        """E403 from the keyword through the name; its fix puts `sudo ` before the keyword."""
+        fix = Fix("Run with sudo", [Edit(Span(span.start, span.start), "sudo ")])
+        self.error("E403", E403, span, soft=True, help=f"try `{suggestion}`", fixes=[fix])
 
     def target(self, var: ast.Var) -> Symbol | None:
         """Resolve the variable an assignment, revert or log changes or reads."""

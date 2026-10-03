@@ -170,3 +170,119 @@ def test_an_exception_becomes_one_e500(monkeypatch):
     [diagnostic] = lsp.check("i use arch btw\n")
     assert diagnostic.code == "E500"
     assert diagnostic.message == "It works on my machine. Unfortunately, this is not my machine."
+
+
+# Code actions (P2): the Quick fix column of Language Spec 11
+
+
+def apply_edits(source: str, edits: list[dict]) -> str:
+    """Apply LSP TextEdits to an ASCII source, last first."""
+    lines = source.split("\n")
+
+    def index(position: dict) -> int:
+        return sum(len(line) + 1 for line in lines[: position["line"]]) + position["character"]
+
+    for edit in sorted(edits, key=lambda e: index(e["range"]["start"]), reverse=True):
+        start, end = index(edit["range"]["start"]), index(edit["range"]["end"])
+        source = source[:start] + edit["newText"] + source[end:]
+    return source
+
+
+def code_actions(client: Client, uri: str, start: dict, end: dict) -> list[dict]:
+    reply = client.request(
+        "textDocument/codeAction",
+        {
+            "textDocument": {"uri": uri},
+            "range": {"start": start, "end": end},
+            "context": {"diagnostics": []},
+        },
+    )
+    return reply["result"]
+
+
+LOOP = " npm install i = 0\n doomscroll i < n { git push --force i = i + 1 }"
+SERVE = "serve localhost:3000 {\n console.log 1\n}\n"
+
+
+@pytest.mark.parametrize(
+    "source, code, title",
+    [
+        (SERVE + ":wq\n", "E426", "Install Arch"),
+        ("i use arch btw\n" + SERVE, "E408", "Exit Vim"),
+        ("i use arch btw\n" + SERVE.removesuffix("\n"), "E408", "Exit Vim"),
+        ("i use arch btw\n" + SERVE + "// TODO ship\n", "E408", "Exit Vim"),
+        ("i use arch btw\nserve localhost:3000 { console.log 1 } // TODO\n", "E408", "Exit Vim"),
+        (
+            "i use arch btw\nnpm install -g C = 1\nserve localhost:3000 {\n"
+            " git push --force C = 2\n}\n:wq\n",
+            "E403",
+            "Run with sudo",
+        ),
+        (
+            "i use arch btw\nnpm install -g C = 1\nserve localhost:3000 {\n"
+            " git push --force C = 2\n git revert C\n}\n:wq\n",
+            "E403",
+            "Run with sudo",
+        ),
+        (
+            f"i use arch btw\nmicroservice f(n) O(1) {{\n{LOOP}\n}}\n{SERVE}:wq\n",
+            "E417",
+            "Update SLA to O(n)",
+        ),
+        (
+            f"i use arch btw\nmicroservice f(n) {{\n{LOOP}\n}}\n{SERVE}:wq\n",
+            "W102",
+            "Add SLA O(n)",
+        ),
+    ],
+    ids=["e426", "e408", "e408_no_final_newline", "e408_comment_line", "e408_trailing_comment",
+         "e403_push", "e403_revert", "e417", "w102"],
+)
+def test_quick_fixes_round_trip(client, source, code, title):
+    """Every diagnostic of `code` offers `title`, and applying all of them
+    (one at a time, rechecking in between) leaves a clean program."""
+    uri = "file:///fix.btw"
+    open_doc(client, uri, source)
+    diagnostics = client.diagnostics(uri)
+    assert {d["code"] for d in diagnostics} == {code}
+    version = 1
+    while diagnostics:
+        target = diagnostics[0]
+        cursor = target["range"]["start"]
+        actions = code_actions(client, uri, cursor, cursor)
+        [action] = [a for a in actions if a["diagnostics"][0]["code"] == code]
+        assert action["title"] == title
+        assert action["kind"] == "quickfix"
+        source = apply_edits(source, action["edit"]["changes"][uri])
+        version += 1
+        client.notify(
+            "textDocument/didChange",
+            {"textDocument": {"uri": uri, "version": version}, "contentChanges": [{"text": source}]},
+        )
+        diagnostics = client.diagnostics(uri)
+    _, _, after = driver.check(source, "fix.btw")
+    assert after == []
+
+
+def test_code_actions_only_for_the_requested_range(client):
+    uri = "file:///range.btw"
+    source = "i use arch btw\nnpm install -g C = 1\nserve localhost:3000 {\n git push --force C = 2\n}\n"
+    open_doc(client, uri, source)
+    assert {d["code"] for d in client.diagnostics(uri)} == {"E403", "E408"}
+    line1 = code_actions(client, uri, {"line": 0, "character": 0}, {"line": 0, "character": 0})
+    assert line1 == []
+    e403 = code_actions(client, uri, {"line": 3, "character": 5}, {"line": 3, "character": 5})
+    assert [a["title"] for a in e403] == ["Run with sudo"]
+    everything = code_actions(client, uri, {"line": 0, "character": 0}, {"line": 5, "character": 0})
+    assert [a["title"] for a in everything] == ["Run with sudo", "Exit Vim"]
+
+
+def test_overlaps():
+    span = lsp.Span(Pos(1, 2), Pos(1, 5))
+    assert lsp.overlaps(span, Pos(1, 2), Pos(1, 2))
+    assert lsp.overlaps(span, Pos(1, 4), Pos(1, 4))
+    assert not lsp.overlaps(span, Pos(1, 5), Pos(1, 5))
+    assert lsp.overlaps(span, Pos(0, 0), Pos(1, 2))
+    empty = lsp.Span(Pos(2, 0), Pos(2, 0))
+    assert lsp.overlaps(empty, Pos(2, 0), Pos(2, 0))
+    assert not lsp.overlaps(empty, Pos(2, 1), Pos(2, 1))

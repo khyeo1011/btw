@@ -2,7 +2,7 @@
 
 Diagnostics come from `driver.check` (lex, parse, check, Big O, suppression;
 never codegen) on every didOpen, didChange and didSave. Hover text lives in
-`hovers.py`. stdout is the protocol channel, so `main` points `sys.stdout` at
+`hovers.py`. Code actions turn the diagnostics' quick fixes into edits. stdout is the protocol channel, so `main` points `sys.stdout` at
 stderr before serving: a stray print can't corrupt the stream.
 """
 
@@ -171,6 +171,48 @@ def did_close(ls: LanguageServer, params: types.DidCloseTextDocumentParams) -> N
     ls.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(uri=params.text_document.uri, diagnostics=[])
     )
+
+
+# Code actions (P2): the quick fixes the diagnostics carry
+
+
+def overlaps(span: Span, start: Pos, end: Pos) -> bool:
+    """Whether a requested range touches a diagnostic. An empty range is a
+    cursor: it touches the characters it sits on, and empty spans at it."""
+    if span.start == span.end:
+        return start <= span.start <= end
+    return span.start <= end and start < span.end
+
+
+@server.feature(
+    types.TEXT_DOCUMENT_CODE_ACTION,
+    types.CodeActionOptions(code_action_kinds=[types.CodeActionKind.QuickFix]),
+)
+@guarded
+def code_action(ls: LanguageServer, params: types.CodeActionParams) -> list[types.CodeAction]:
+    uri = params.text_document.uri
+    source = ls.workspace.get_text_document(uri).source
+    lines = source_lines(source)
+    start = from_client(lines, params.range.start, encoding(ls))
+    end = from_client(lines, params.range.end, encoding(ls))
+    actions = []
+    for diagnostic in check(source):
+        if not diagnostic.fixes or not overlaps(diagnostic.span, start, end):
+            continue
+        for fix in diagnostic.fixes:
+            edits = [
+                types.TextEdit(range=to_range(lines, edit.span, encoding(ls)), new_text=edit.text)
+                for edit in fix.edits
+            ]
+            actions.append(
+                types.CodeAction(
+                    title=fix.title,
+                    kind=types.CodeActionKind.QuickFix,
+                    diagnostics=[to_lsp(diagnostic, uri, lines, encoding(ls))],
+                    edit=types.WorkspaceEdit(changes={uri: edits}),
+                )
+            )
+    return actions
 
 
 # Hover
