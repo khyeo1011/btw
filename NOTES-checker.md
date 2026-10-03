@@ -126,9 +126,9 @@ strict xfails, so each one will flip to a pass when its card lands.
 
 ## Status
 
-- Every `tests/golden/*.diag` matches `btw check --format short`, ignoring
-  the Big O codes (E417, W417, W102, W508, W203) and the suppression codes
-  (W200, W304), except for the four files above.
+- Every `tests/golden/*.diag` matches `btw check --format short`, Big O
+  codes included (`bigo.py` runs in the driver), ignoring the suppression
+  codes (W200, W304), except for the four files above.
 - `uv run pytest tests/test_checker.py`: 122 pass and 4 xfail. The tests
   include that golden comparison, plus unit tests for symbols and types and
   for every message and span the corpus doesn't cover.

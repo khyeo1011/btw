@@ -72,6 +72,5 @@ cost the callee's degree, mutual recursion) in one implementation.
   only golden whose Big O lines don't match yet, and it's a strict xfail in
   `tests/test_bigo.py` (`WAITING`). Remove it from there when suppression
   lands.
-- Checker card: `tests/test_checker.py` filters the Big O codes out through
-  `OTHER_CARDS`, so this card causes no unexpected passes there. Those codes
-  can come out of `OTHER_CARDS` now.
+- Checker card: `tests/test_checker.py` compares the Big O codes too; they
+  are no longer in its `OTHER_CARDS`.

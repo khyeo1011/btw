@@ -11,8 +11,8 @@ from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
 
-# Codes other cards report: Big O (bigo.py) and suppression (suppress.py).
-OTHER_CARDS = {"E417", "W417", "W102", "W508", "W203", "W200", "W304"}
+# Codes other cards report: suppression (suppress.py).
+OTHER_CARDS = {"W200", "W304"}
 
 # Goldens that can't match until another card lands: pipes are parsed by the
 # parser card, and the suppressed E403 and W204 need suppress.py.
