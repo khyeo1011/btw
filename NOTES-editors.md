@@ -28,6 +28,13 @@ editors/nvim/README.md                         how to load both
   committed so every machine gets 9.0.1.
 - **serverPath** is read once, in `activate`. After changing it, run
   "Developer: Reload Window".
+- **A server that won't start doesn't fail activation.** The client already
+  logs the error to the "btw" channel and shows a notification. `activate`
+  only adds a line saying to fix `PATH` or `btw.serverPath`, and `deactivate`
+  stops the client only if it is running. (`stop()` throws in the
+  `startFailed` state.)
+- **publisher** is `btw`, so the extension id is `btw.btw-lang` instead of
+  `undefined_publisher.btw-lang`.
 - **Grammar mirrors the lexer, not just `\b`.** Keywords need an identifier
   boundary at the end (Language Spec 2.3). At the start, the lexer has already
   consumed any identifier greedily, so:
@@ -66,8 +73,10 @@ editors/nvim/README.md                         how to load both
 
 ## Verification
 
-No VS Code is installed on the machine this was built on, so **F5 itself was
-not run**. Each piece it depends on was checked separately:
+No VS Code is installed on the machine this was built on, so F5 was first run
+by hand. That run showed "Activating extension failed: spawn btw-lsp ENOENT"
+(see the activation decision above). Each piece F5 depends on was also checked
+separately:
 
 - **Grammar.** `test/syntax.test.btw` holds 32 lines with hand-written
   positive and negative scope assertions (tabs between words, `doomscrolling`,
@@ -89,7 +98,9 @@ not run**. Each piece it depends on was checked separately:
   `vscode-languageclient` modules: it reads `btw.serverPath` (default
   `btw-lsp`), uses stdio, selects `file` documents of language `btw`, creates
   an output channel named `btw`, starts on activate and stops on deactivate.
-  The real `vscode-languageclient/node` resolves after `npm install`.
+  When the start fails with `spawn btw-lsp ENOENT`, `activate` and
+  `deactivate` still resolve and the channel gets the `PATH` hint. The real
+  `vscode-languageclient/node` resolves after `npm install`.
 - **Neovim 0.12, headless.** A `.btw` file gets filetype `btw` and
   `syntax/btw.vim`. The same fixture, mapped to Vim groups, passes 505
   per-column checks, and the golden sweep gives the same result as VS Code.
@@ -97,12 +108,17 @@ not run**. Each piece it depends on was checked separately:
   with code 1 and the `ModuleNotFoundError` lands in the LSP log, which is the
   expected error.
 
-To finish the VS Code check by hand: run `npm install` in `editors/vscode`,
-open that folder in VS Code (launched with `code .` from a shell where
-`uv run which btw-lsp` works, or set `btw.serverPath` to `.venv/bin/btw-lsp`),
-press F5, and open any `tests/golden/*.btw` in the new window. Keywords should
-be colored, and the "btw" output channel should show the server failing to
-start.
+To check VS Code by hand: run `npm install` in `editors/vscode`, open that
+folder in VS Code, press F5, and open any `tests/golden/*.btw` in the new
+window. Keywords should be colored. `btw-lsp` lives in the project's
+`.venv/bin`, which VS Code doesn't see by itself, so either start VS Code from
+a shell where `uv run which btw-lsp` works (`uv run code editors/vscode`,
+with every VS Code window closed first: `code` hands off to a running
+instance, which keeps its own `PATH`), or
+set `btw.serverPath` to the absolute path of `.venv/bin/btw-lsp` in the
+development host window's settings. Until `btw.lsp` exists, the "btw" output
+channel then shows the server exiting with `No module named 'btw.lsp'`.
+Without either, it shows ENOENT and the `PATH` hint.
 
 ## Spec questions
 

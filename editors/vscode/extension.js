@@ -20,11 +20,16 @@ function activate(context) {
 
   client = new LanguageClient("btw", "btw", serverOptions, clientOptions);
   context.subscriptions.push(outputChannel);
-  return client.start();
+  // The client already logs and reports a failed start. Don't fail activation too.
+  client.start().catch(() => {
+    outputChannel.appendLine(
+      `Could not start "${command}". Put it on PATH, or set btw.serverPath to an absolute path.`
+    );
+  });
 }
 
 function deactivate() {
-  return client ? client.stop() : undefined;
+  return client && client.isRunning() ? client.stop() : undefined;
 }
 
 module.exports = { activate, deactivate };

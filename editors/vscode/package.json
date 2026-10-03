@@ -3,6 +3,7 @@
   "displayName": "btw",
   "description": "Syntax highlighting and language server client for btw",
   "version": "0.0.1",
+  "publisher": "btw",
   "private": true,
   "license": "MIT",
   "engines": {
