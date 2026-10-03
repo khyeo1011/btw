@@ -1,4 +1,4 @@
-3:21: error E418: I'm a teapot: can't apply `+` to a boolean.
-4:17: error E418: I'm a teapot: can't compare a number with a boolean.
-5:18: error E418: I'm a teapot: `!` needs a boolean, got a number.
-6:18: error E418: I'm a teapot: `-` needs a number, got a boolean.
+3:21: error[E418]: I'm a teapot: can't apply `+` to a boolean.
+4:17: error[E418]: I'm a teapot: can't compare a number with a boolean.
+5:18: error[E418]: I'm a teapot: `!` needs a boolean, got a number.
+6:18: error[E418]: I'm a teapot: `-` needs a number, got a boolean.

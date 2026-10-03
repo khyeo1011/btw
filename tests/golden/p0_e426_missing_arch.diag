@@ -1,1 +1,1 @@
-1:1: error E426: Fatal: `i use arch btw` not found. Are you on Windows?
+1:1: error[E426]: Fatal: `i use arch btw` not found. Are you on Windows?

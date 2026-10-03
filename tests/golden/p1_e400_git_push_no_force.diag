@@ -1,1 +1,1 @@
-4:5: error E400: Updates were rejected because the tip of your current branch is behind. Use `git push --force`.
+4:5: error[E400]: Updates were rejected because the tip of your current branch is behind. Use `git push --force`.

@@ -1,1 +1,1 @@
-2:23: error E405: npm ERR! postinstall scripts are disabled. Globals can't call microservices.
+2:23: error[E405]: npm ERR! postinstall scripts are disabled. Globals can't call microservices.

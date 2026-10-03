@@ -1,2 +1,2 @@
-3:5: warning W304: 304 Not Modified: this one doesn't work on any machine.
-4:17: error E404: Error 404: variable `ghost` not found. Did you forget to `npm install` it?
+3:5: warning[W304]: 304 Not Modified: this one doesn't work on any machine.
+4:17: error[E404]: Error 404: variable `ghost` not found. Did you forget to `npm install` it?

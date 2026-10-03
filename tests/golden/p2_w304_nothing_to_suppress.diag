@@ -1,1 +1,1 @@
-3:5: warning W304: 304 Not Modified: nothing to suppress. It works on every machine.
+3:5: warning[W304]: 304 Not Modified: nothing to suppress. It works on every machine.

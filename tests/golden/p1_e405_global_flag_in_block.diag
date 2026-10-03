@@ -1,1 +1,1 @@
-3:5: error E405: npm ERR! `-g` installs go at the top level.
+3:5: error[E405]: npm ERR! `-g` installs go at the top level.

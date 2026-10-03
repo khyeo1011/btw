@@ -1,1 +1,1 @@
-6:1: error E410: Error: code after `:wq`. You already left Vim.
+6:1: error[E410]: Error: code after `:wq`. You already left Vim.

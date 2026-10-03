@@ -1,1 +1,1 @@
-4:5: error E403: Permission denied. Are you root?
+4:5: error[E403]: Permission denied. Are you root?

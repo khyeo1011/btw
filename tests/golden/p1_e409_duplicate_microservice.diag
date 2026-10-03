@@ -1,1 +1,1 @@
-5:14: error E409: Error: microservice `ping` is already deployed.
+5:14: error[E409]: Error: microservice `ping` is already deployed.

@@ -1,1 +1,1 @@
-2:14: warning W508: Complexity: O(?). The halting problem is a skill issue.
+2:14: warning[W508]: Complexity: O(?). The halting problem is a skill issue.

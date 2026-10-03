@@ -1,1 +1,1 @@
-2:14: error E413: Error: `monolith` takes 7 parameters. That's not a microservice, that's a monolith.
+2:14: error[E413]: Error: `monolith` takes 7 parameters. That's not a microservice, that's a monolith.

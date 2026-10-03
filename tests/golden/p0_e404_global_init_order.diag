@@ -1,1 +1,1 @@
-2:20: error E404: Error 404: variable `B` not found. Did you forget to `npm install` it?
+2:20: error[E404]: Error 404: variable `B` not found. Did you forget to `npm install` it?

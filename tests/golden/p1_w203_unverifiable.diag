@@ -1,1 +1,1 @@
-2:22: warning W203: I can't verify O(log n). I'll take your word for it.
+2:22: warning[W203]: I can't verify O(log n). I'll take your word for it.

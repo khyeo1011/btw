@@ -1,1 +1,1 @@
-3:17: error E404: Error 404: microservice `ghost` not found. Did you forget to deploy it?
+3:17: error[E404]: Error 404: microservice `ghost` not found. Did you forget to deploy it?

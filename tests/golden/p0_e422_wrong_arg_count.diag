@@ -1,2 +1,2 @@
-9:17: error E422: Error: microservice `add` expects 2 arguments, got 1. Breaking API change?
-10:17: error E422: Error: microservice `neg` expects 1 argument, got 2. Breaking API change?
+9:17: error[E422]: Error: microservice `add` expects 2 arguments, got 1. Breaking API change?
+10:17: error[E422]: Error: microservice `neg` expects 1 argument, got 2. Breaking API change?

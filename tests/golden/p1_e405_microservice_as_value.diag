@@ -1,1 +1,1 @@
-6:17: error E405: `total` is a microservice. Call it: `total(...)`.
+6:17: error[E405]: `total` is a microservice. Call it: `total(...)`.

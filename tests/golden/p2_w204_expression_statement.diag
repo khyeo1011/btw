@@ -1,1 +1,1 @@
-4:5: warning W204: This expression does nothing. Like a standup meeting.
+4:5: warning[W204]: This expression does nothing. Like a standup meeting.
