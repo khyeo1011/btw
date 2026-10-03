@@ -5,6 +5,8 @@ Every node has a keyword-only `span`, so node fields stay positional:
 Var, Call and Ident.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
