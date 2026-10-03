@@ -14,10 +14,7 @@ RUN_SIDECARS = (".out", ".err", ".exit")
 # Goldens whose diagnostics can't match until another card lands. Step 1 is an
 # expected failure while it differs, and a hard failure once it matches, so
 # the entry gets removed as soon as the other card is done.
-WAITING = {
-    "p2_pipes": "pipes (parser card)",
-    "p2_e405_pipe_console_log_value": "pipes (parser card)",
-}
+WAITING: dict[str, str] = {}
 
 
 def tier(program: Path) -> int:

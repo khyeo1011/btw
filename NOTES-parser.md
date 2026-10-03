@@ -148,15 +148,10 @@ top of that:
 
 ## Pipes
 
-Pipes aren't parsed yet: another card adds them. `|` isn't in `INFIX`, so
-`a | f` is a Var followed by "expected end of line, found `|`." The two pipe
-programs (`p2_pipes`, `p2_e405_pipe_console_log_value`) are strict xfails in
-`test_parser.py`, so they'll flip once pipes work. To add them: give PIPE
-level 1 in the Pratt loop, parse each stage as an IDENT with optional
-arguments or `console.log`, and desugar into Call and Print with each
-stage's span (Language Spec 9.4). A pipeline ending in `console.log` is a
-statement, so `statement_body` has to be able to return a Print from an
-expression.
+Pipes parse now (P2 extras card, see NOTES-extras): `|` is level 1 in
+`expr`, each stage desugars into a Call with the stage's span, and a final
+`console.log` makes a Print when the pipeline is the whole statement, E405
+anywhere else.
 
 ## Status
 
