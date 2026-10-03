@@ -202,3 +202,53 @@ and `console.log` cyan, `"sum"` green and the TODO comment grey; without
 default scheme's `Comment` only sets a GUI color, which is a colorscheme
 matter, not the server's. `vim.inspect_pos(0, 3, 22)` names the comment's
 group `@lsp.type.comment.btw`.
+
+## 4. Inlay hints
+
+- **Where.** One hint per microservice without an annotation, at the end of
+  the `)` that closes its parameter list, found with `bigo.params_close` (the
+  same scan W102's Add SLA fix uses, so it handles a parameter list split
+  over lines). A microservice whose `)` is missing gets no hint, as W102 gets
+  no fix. Annotated microservices get nothing, even unverifiable ones.
+- **Label.** The inferred complexity in W102's spelling: `O(1)`, `O(n)`,
+  `O(n²)`, always with `n` like W102's message. A recursive microservice
+  shows `O(?)`: it has no SLA either, and the hint is the honest answer.
+- **Details.** Kind Type, `paddingLeft` so it reads `pairs(n) O(n²) {`, and a
+  tooltip, "Inferred by the Big O checker. Write it down as an SLA." Every
+  hint but `O(?)` carries a textEdit that inserts the SLA in source form
+  (` O(n^2)`, since the lexer rejects `²`), exactly what Add SLA inserts, so
+  an editor that accepts hints writes a valid annotation. `O(?)` has no edit
+  because it isn't valid syntax.
+- **Range.** Only hints whose position is inside the requested range
+  (inclusive) are returned.
+- `editors/nvim/btw.lua` doesn't turn inlay hints on (Neovim leaves them off
+  by default) and belongs to the editors card, so it wasn't changed; enable
+  them with `:lua vim.lsp.inlay_hint.enable(true)`.
+
+### Verified in Neovim
+
+The program from `test_inlay_hints`: `pairs(n)` with two nested loops,
+`twice(a, b) O(1)`, a recursive `fact(n)` and `wait( n ,` / `  m )` with one
+loop and its parameter list over two lines. After
+`:lua vim.lsp.inlay_hint.enable(true)` the screen shows the hints as virtual
+text (the buffer line still reads `microservice pairs(n) {`):
+
+```
+W microservice pairs(n) O(n²) {     ■ microservice `pairs` has no SLA. Inferred: O(n²).
+  microservice twice(a, b) O(1) {
+W microservice fact(n) O(?) {     ■ Complexity: O(?). The halting problem is a skill issue.
+W microservice wait( n ,     ■ microservice `wait` has no SLA. Inferred: O(n).
+    m ) O(n) {
+```
+
+(`twice`'s `O(1)` is its real annotation.) Changing `fact`'s body to
+`ship it n` turned its hint into `O(1)` right away;
+`vim.lsp.inlay_hint.get` listed `{1, 21, "O(n²)"}, {12, 20, "O(1)"},
+{16, 5, "O(n)"}`. In a fresh session, a Lua script applied every hint's
+textEdits with `vim.lsp.util.apply_text_edits` (3 hints, edits on all but
+`O(?)`): the buffer got `pairs(n) O(n^2) {` and `m ) O(n) {`, both W102s
+disappeared, one hint (`O(?)`) and one diagnostic (W508) were left, and
+after `:w` `btw check` reported only the W508.
+
+The Neovim log had nothing from the server; no `lsp.log` was written at
+all, so the server never wrote to stderr.

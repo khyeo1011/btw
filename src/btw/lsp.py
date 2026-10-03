@@ -2,9 +2,11 @@
 
 Diagnostics come from `driver.check` (lex, parse, check, Big O, suppression;
 never codegen) on every didOpen, didChange and didSave. Hover text lives in
-`hovers.py`. Code actions turn the diagnostics' quick fixes into edits, and
-semantic tokens give editors highlighting without a syntax file. stdout is the protocol channel, so `main` points `sys.stdout` at
-stderr before serving: a stray print can't corrupt the stream.
+`hovers.py`. Code actions turn the diagnostics' quick fixes into edits,
+semantic tokens give editors highlighting without a syntax file, and inlay
+hints show the inferred O() of a microservice without an SLA. stdout is the
+protocol channel, so `main` points `sys.stdout` at stderr before serving: a
+stray print can't corrupt the stream.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from typing import Any
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
-from btw import ast, driver, hovers
+from btw import ast, bigo, driver, hovers
 from btw.checker import Symbol, SymbolKind
 from btw.diagnostics import Diagnostic, Severity
 from btw.span import Pos, Span
@@ -324,6 +326,55 @@ def encode(lines: list[str], classified: list[tuple[Span, str, bool]], encoding:
 def semantic_tokens(ls: LanguageServer, params: types.SemanticTokensParams) -> types.SemanticTokens:
     source = ls.workspace.get_text_document(params.text_document.uri).source
     return types.SemanticTokens(data=encode(source_lines(source), classify(source), encoding(ls)))
+
+
+# Inlay hints (P2): the inferred O() of a microservice without an SLA
+
+
+def inferred_hints(source: str) -> list[tuple[Pos, str, str | None]]:
+    """(position just after the `)`, label, text to insert) for each
+    unannotated microservice. The label is the W102 spelling (O(n), O(n²),
+    O(?) when recursive); the text is what Add SLA inserts (O(n^2)), or None
+    for O(?), which isn't a valid SLA."""
+    tokens, program = driver.lex(source)[0], driver.check(source, "")[0]
+    inference = bigo.Inference(program)
+    hints = []
+    for item in program.items:
+        if not isinstance(item, ast.Microservice) or item.big_o is not None:
+            continue
+        close = bigo.params_close(tokens, item)
+        if close is None:
+            continue
+        degree = inference.microservice(item).degree
+        text = None if degree is bigo.UNKNOWN else bigo.format_complexity(degree, source=True)
+        hints.append((close.end, bigo.format_complexity(degree), text))
+    return hints
+
+
+@server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
+@guarded
+def inlay_hint(ls: LanguageServer, params: types.InlayHintParams) -> list[types.InlayHint]:
+    source = ls.workspace.get_text_document(params.text_document.uri).source
+    lines = source_lines(source)
+    start = from_client(lines, params.range.start, encoding(ls))
+    end = from_client(lines, params.range.end, encoding(ls))
+    hints = []
+    for pos, label, text in inferred_hints(source):
+        if not start <= pos <= end:
+            continue
+        position = to_client(lines, pos, encoding(ls))
+        edit = types.TextEdit(range=types.Range(start=position, end=position), new_text=f" {text}")
+        hints.append(
+            types.InlayHint(
+                position=position,
+                label=label,
+                kind=types.InlayHintKind.Type,
+                padding_left=True,
+                tooltip="Inferred by the Big O checker. Write it down as an SLA.",
+                text_edits=[edit] if text is not None else None,
+            )
+        )
+    return hints
 
 
 # Hover

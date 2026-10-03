@@ -473,3 +473,81 @@ def test_semantic_tokens_use_the_negotiated_encoding():
     ]
     utf16 = lsp.encode(lines, lsp.classify(source), "utf-16")
     assert utf16[5:] == [0, 12, 5, 5, 0, 0, 6, 10, 6, 0]
+
+
+# Inlay hints (P2): the inferred O() after an unannotated microservice's parameters
+
+
+QUADRATIC = (
+    " npm install i = 0\n doomscroll i < n {\n"
+    "  npm install j = 0\n  doomscroll j < n { git push --force j = j + 1 }\n"
+    "  git push --force i = i + 1\n }"
+)
+HINTS = f"""\
+i use arch btw
+microservice pairs(n) {{
+{QUADRATIC}
+}}
+microservice twice(a, b) O(1) {{
+ ship it a + b
+}}
+microservice fact(n) {{
+ ship it fact(n - 1)
+}}
+microservice wait( n ,
+  m ) {{
+{LOOP}
+}}
+{SERVE}:wq
+"""
+
+
+def inlay_hints(client: Client, uri: str, start: dict, end: dict) -> list[dict]:
+    reply = client.request(
+        "textDocument/inlayHint",
+        {"textDocument": {"uri": uri}, "range": {"start": start, "end": end}},
+    )
+    return reply["result"]
+
+
+def test_inlay_hints(client):
+    assert client.capabilities["inlayHintProvider"]
+    uri = "file:///hints.btw"
+    open_doc(client, uri, HINTS)
+    client.diagnostics(uri)
+    hints = inlay_hints(client, uri, {"line": 0, "character": 0}, {"line": 40, "character": 0})
+    summary = [
+        (h["position"]["line"], h["position"]["character"], h["label"], h.get("paddingLeft"), h["kind"])
+        for h in hints
+    ]
+    assert summary == [
+        (1, 21, "O(n²)", True, 1),  # after `pairs(n)`
+        (12, 20, "O(?)", True, 1),  # recursive: shown, not insertable
+        (16, 5, "O(n)", True, 1),  # after the `)` on the parameter list's second line
+    ]
+    by_label = {h["label"]: h for h in hints}
+    assert by_label["O(n²)"]["textEdits"] == [
+        {"range": {"start": {"line": 1, "character": 21}, "end": {"line": 1, "character": 21}},
+         "newText": " O(n^2)"}
+    ]
+    assert "textEdits" not in by_label["O(?)"]
+
+
+def test_inlay_hints_round_trip(client):
+    """Inserting every insertable hint leaves only the recursive one's W508."""
+    uri = "file:///hints2.btw"
+    open_doc(client, uri, HINTS)
+    client.diagnostics(uri)
+    hints = inlay_hints(client, uri, {"line": 0, "character": 0}, {"line": 40, "character": 0})
+    edits = [edit for h in hints for edit in h.get("textEdits", [])]
+    _, _, after = driver.check(apply_edits(HINTS, edits), "hints.btw")
+    assert [d.code for d in after] == ["W508"]
+
+
+def test_inlay_hints_only_in_the_requested_range(client):
+    uri = "file:///hints3.btw"
+    open_doc(client, uri, HINTS)
+    client.diagnostics(uri)
+    hints = inlay_hints(client, uri, {"line": 9, "character": 0}, {"line": 13, "character": 0})
+    assert [h["label"] for h in hints] == ["O(?)"]
+    assert inlay_hints(client, uri, {"line": 1, "character": 22}, {"line": 11, "character": 0}) == []
