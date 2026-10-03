@@ -180,9 +180,12 @@ now says the same.
 4. **E408 "the last token" (4, 11).** Does the final NEWLINE or EOF count?
    Every golden file ends with a newline, so this can't be avoided.
    `p0_e408_missing_wq` assumes the last real token (the `}` at 4:1).
+   **Resolved:** the last token that isn't NEWLINE or EOF. The parser reports
+   E408 itself, since `Program` has no field for that token's span (Language
+   Spec 4, Implementation Spec 6).
 5. **E410 and E408 together (4).** With code after `:wq`, `:wq` isn't the last
    token. `p1_e410_code_after_wq` assumes only E410, since the E408 trigger is
-   "missing `:wq`".
+   "missing `:wq`". **Resolved:** E410 only (Language Spec 4).
 6. **Other checks with E426 or E503 (4).** Do the remaining checks run?
    Tests: `p0_e426_missing_arch` and `p0_e503_no_serve` contain nothing else
    to report.
@@ -201,6 +204,7 @@ now says the same.
    `p0_e400_top_level_statement` expects it.
 10. **E418 comparison message with a boolean on the left (11).** "can't compare
     a number with a boolean" might flip. Tests: the number is on the left.
+    **Resolved:** it never flips.
 11. **E409 for a repeated parameter (8).** The catalog has no row for it.
     `p0_e409_duplicate_param` assumes the "already installed" message.
 12. **`ship it` of a boolean in `serve` (6).** **Resolved:** "I'm a teapot:

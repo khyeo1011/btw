@@ -207,12 +207,12 @@ Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN 
 - **Missing `}` at the end of the file:** E400 "Syntax error: expected `}`, found end of file." Then close every open block.
 - At most one E400 per statement.
 - Else lookahead, `ship it` without a value, and Big O annotations: as specified in Language Spec §3.
-- The arch line, `:wq` and trailing tokens are recorded on Program and never reported by the parser.
+- The arch line, `:wq` and trailing tokens are recorded on Program and reported by the checker. The one exception is E408: with no `:wq` at all, the parser reports it on the last token that isn't NEWLINE or EOF (Language Spec §4).
 - Pipes (P2) desugar here, and each desugared call keeps its stage's span.
 
 # 7. Checker passes, in order
 
-1. **Structure:** E426, E408, E410, E503, E409 for extra `serve` blocks, W208 (P2).
+1. **Structure:** E426, E410, E503, E409 for extra `serve` blocks, W208 (P2).
 2. **Hoisting:** collect globals and microservices. E409 for duplicates and repeated parameter names, E413 for 7 or more parameters.
 3. **Global initializers** in source order: only earlier globals are visible, calls are E405 (postinstall), strings are E415.
 4. **Bodies:** walk each microservice and the `serve` block with a scope stack. Resolve names (E404, E409, E405), compute types (E418, E415, E422), apply sudo rules (E403, W100), track loop context (E405 for `touch grass`, W509), and flag unreachable code (W410) and useless expressions (W204).
