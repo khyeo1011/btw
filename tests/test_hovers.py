@@ -126,3 +126,28 @@ def test_nothing_to_say():
 def test_broken_program_still_hovers():
     source = "serve localhost:3000 {\n    doomscroll LGTM {\n"
     assert text_at(2, "doomscroll", source=source) == hovers.KEYWORDS[hovers.K.DOOMSCROLL]
+
+
+PIPES = """\
+i use arch btw
+microservice f(n) O(1) { ship it n }
+microservice g(n, m) O(1) { ship it n + m }
+serve localhost:3000 {
+    npm install x = 3
+    npm install y = 4
+    x | f | g(y) | console.log
+    console.log x + 1 | f
+}
+:wq
+"""
+
+
+def test_pipe_head_hovers():
+    """A desugared stage has its own span, not its first argument's (Language
+    Spec 9.4), so the head of a pipe must still be found."""
+    assert text_at(7, "x", source=PIPES) == "`npm install x` · number · declared on line 5"
+    assert text_at(8, "x", source=PIPES) == "`npm install x` · number · declared on line 5"
+    assert text_at(7, "y", source=PIPES) == "`npm install y` · number · declared on line 6"
+    assert text_at(7, "f", source=PIPES).startswith("`microservice f(n)`")
+    assert text_at(7, "g", source=PIPES).startswith("`microservice g(n, m)`")
+    assert text_at(7, "console.log", source=PIPES) == "**print.** Real debugging, in a compiled language."

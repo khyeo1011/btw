@@ -119,7 +119,13 @@ def comment_hover(comments: list[Comment], comment: Comment) -> tuple[str, Span]
 
 
 def name_at(node: object, pos: Pos) -> ast.Ident | ast.Var | None:
-    """The innermost Ident or Var under `pos` in the tree below `node`."""
+    """The Ident or Var under `pos` in the tree below `node`.
+
+    Names are leaves and never overlap, so this walks the whole tree instead
+    of pruning at nodes whose span misses `pos`: a desugared pipe stage (Call
+    or Print) has the stage's span, which doesn't cover its first argument
+    (Language Spec 9.4), so pruning would hide the `x` in `x | f`.
+    """
     if isinstance(node, list):
         for child in node:
             if (found := name_at(child, pos)) is not None:
@@ -129,8 +135,6 @@ def name_at(node: object, pos: Pos) -> ast.Ident | ast.Var | None:
         return None
     if isinstance(node, ast.Ident | ast.Var):
         return node if node.span.contains(pos) else None
-    if not isinstance(node, ast.Program) and not node.span.contains(pos):
-        return None
     children = (f.name for f in fields(node) if f.name not in ("span", "sym", "ty", "comments"))
     for name in children:
         if (found := name_at(getattr(node, name), pos)) is not None:
