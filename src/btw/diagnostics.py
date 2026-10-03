@@ -1,55 +1,37 @@
-"""Diagnostic types shared by every component (Language Spec 11)."""
+"""Diagnostics shared by every component (Implementation Spec 4.2)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+
+from btw.span import Span
 
 
 class Severity(Enum):
     ERROR = "error"
-    SOFT_ERROR = "soft error"
     WARNING = "warning"
 
 
-@dataclass(frozen=True, order=True)
-class Position:
-    """0-based line and column. Columns count UTF-16 code units."""
-
-    line: int
-    column: int
+@dataclass(frozen=True)
+class Edit:
+    span: Span
+    text: str
 
 
 @dataclass(frozen=True)
-class Span:
-    start: Position
-    end: Position
+class Fix:
+    """A quick fix (P2): a title plus the edits that apply it."""
+
+    title: str
+    edits: list[Edit]
 
 
 @dataclass(frozen=True)
 class Diagnostic:
-    code: str
+    code: str  # "E404", "W508"
     severity: Severity
-    message: str
+    message: str  # exact text from the Language Spec catalog
     span: Span
-    help: str | None = None
-
-    @property
-    def blocking(self) -> bool:
-        """Hard and soft errors block `btw run` and `btw build`."""
-        return self.severity is not Severity.WARNING
-
-
-def line_span(source: str, line: int) -> Span:
-    """The span of a whole line, for diagnostics positioned on "line 1"."""
-    lines = source.split("\n")
-    text = lines[line].removesuffix("\r") if line < len(lines) else ""
-    return Span(Position(line, 0), Position(line, len(text.encode("utf-16-le")) // 2))
-
-
-def sort_diagnostics(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
-    """Sort by line, column and code, dropping exact duplicates (same code and span)."""
-    unique = {(d.code, d.span): d for d in reversed(diagnostics)}
-    return sorted(unique.values(), key=lambda d: (d.span.start, d.code))
-
-
-def has_errors(diagnostics: list[Diagnostic]) -> bool:
-    return any(d.blocking for d in diagnostics)
+    soft: bool = False  # E403, E417 and every warning: suppressible
+    related: list[tuple[Span, str]] = field(default_factory=list)  # P2
+    fixes: list[Fix] = field(default_factory=list)  # P2
+    help: str | None = None  # printed by the CLI in pretty mode
