@@ -1,0 +1,5 @@
+i use arch btw
+serve localhost:3000 {
+    npm install y = 5 | console.log
+}
+:wq

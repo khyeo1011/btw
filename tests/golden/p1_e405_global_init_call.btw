@@ -1,0 +1,9 @@
+i use arch btw
+npm install -g SEED = seed()
+microservice seed() O(1) {
+    ship it 4
+}
+serve localhost:3000 {
+    console.log SEED
+}
+:wq

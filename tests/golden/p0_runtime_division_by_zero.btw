@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    npm install zero = 0
+    console.log "before"
+    console.log 10 / zero
+    console.log "after"
+}
+:wq

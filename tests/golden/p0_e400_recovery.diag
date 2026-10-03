@@ -1,0 +1,2 @@
+3:22: error E400: Syntax error: expected a name, found `=`.
+4:17: error E404: Error 404: variable `ghost` not found. Did you forget to `npm install` it?

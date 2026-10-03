@@ -1,0 +1,8 @@
+i use arch btw
+npm install -g MAX = 5
+serve localhost:3000 {
+    console.log MAX
+    sudo git push --force MAX = 7
+    console.log MAX
+}
+:wq

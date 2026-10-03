@@ -1,0 +1,9 @@
+i use arch btw
+serve localhost:3000 {
+    npm install n = 1
+    doomscroll n < 20 {
+        git push --force n = n + 1
+    }
+    git log n
+}
+:wq

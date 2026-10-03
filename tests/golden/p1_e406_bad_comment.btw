@@ -1,0 +1,6 @@
+i use arch btw
+// prints one
+serve localhost:3000 {
+    console.log 1 // todo: lowercase
+}
+:wq

@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    npm install count = 5
+    console.log count
+    git revert count
+    console.log "unreachable"
+}
+:wq

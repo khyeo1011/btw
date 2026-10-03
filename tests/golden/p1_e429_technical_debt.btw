@@ -1,0 +1,12 @@
+i use arch btw
+// TODO one
+// TODO two
+// TODO three
+//TODO four
+// TODO five
+// TODO six
+// TODO seven
+serve localhost:3000 {
+    console.log "debt"
+}
+:wq

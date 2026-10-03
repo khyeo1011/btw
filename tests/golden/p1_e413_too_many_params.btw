@@ -1,0 +1,8 @@
+i use arch btw
+microservice monolith(a, b, c, d, e, f, g) O(1) {
+    ship it a
+}
+serve localhost:3000 {
+    console.log "big"
+}
+:wq

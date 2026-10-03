@@ -1,0 +1,9 @@
+i use arch btw
+serve localhost:3000 {
+    npm install zero = 0
+    console.log 404 && 1 / zero == 0
+    console.log LGTM || 1 / zero == 0
+    console.log LGTM && 2 > 1
+    console.log 404 || 1 > 2
+}
+:wq

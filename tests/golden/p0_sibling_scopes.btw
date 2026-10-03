@@ -1,0 +1,14 @@
+i use arch btw
+serve localhost:3000 {
+    vibe check LGTM {
+        npm install i = 1
+        console.log i
+    }
+    vibe check LGTM {
+        npm install i = 2
+        console.log i
+    }
+    npm install i = 3
+    console.log i
+}
+:wq

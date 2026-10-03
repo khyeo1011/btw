@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    npm install x = 1
+    npm install flag = LGTM
+    git push --force x = LGTM
+    git push --force flag = 1
+}
+:wq

@@ -1,0 +1,7 @@
+i use arch btw
+serve localhost:3000 {
+    console.log "shipped"
+    ship it 3
+    console.log "never"
+}
+:wq

@@ -1,0 +1,7 @@
+i use arch btw
+npm install -g A = B + 1
+npm install -g B = 1
+serve localhost:3000 {
+    console.log A
+}
+:wq

@@ -1,0 +1,21 @@
+i use arch btw
+serve localhost:3000 {
+    npm install i = 0
+    doomscroll LGTM {
+        git push --force i = i + 1
+        vibe check i == 3 {
+            touch grass
+        }
+        console.log i
+    }
+    npm install outer = 0
+    doomscroll outer < 2 {
+        doomscroll LGTM {
+            touch grass
+        }
+        console.log outer
+        git push --force outer = outer + 1
+    }
+    console.log "done"
+}
+:wq

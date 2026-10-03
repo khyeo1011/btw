@@ -1,0 +1,8 @@
+i use arch btw
+microservice half(n) O(log n) {
+    ship it n / 2
+}
+serve localhost:3000 {
+    console.log half(8)
+}
+:wq

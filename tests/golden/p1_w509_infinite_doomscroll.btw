@@ -1,0 +1,7 @@
+i use arch btw
+serve localhost:3000 {
+    doomscroll LGTM {
+        console.log "scrolling"
+    }
+}
+:wq

@@ -1,0 +1,6 @@
+i use arch btw
+console.log "hi"
+serve localhost:3000 {
+    console.log "hello"
+}
+:wq

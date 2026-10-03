@@ -1,0 +1,17 @@
+i use arch btw
+serve localhost:3000 {
+    console.log 1 + 2 * 3
+    console.log (1 + 2) * 3
+    console.log 10 - 4 - 3
+    console.log 100 / 10 / 5
+    console.log -2 * -3
+    console.log 7 / 2
+    console.log 7 % 2
+    console.log -7 / 2
+    console.log -7 % 2
+    console.log 7 / -2
+    console.log 7 % -2
+    console.log -7 / -2
+    console.log -7 % -2
+}
+:wq

@@ -1,0 +1,12 @@
+i use arch btw
+microservice count(n) {
+    npm install i = 0
+    doomscroll i < n {
+        git push --force i = i + 1
+    }
+    ship it i
+}
+serve localhost:3000 {
+    console.log count(5)
+}
+:wq

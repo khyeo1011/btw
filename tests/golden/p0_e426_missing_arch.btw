@@ -1,0 +1,4 @@
+serve localhost:3000 {
+    console.log "hi"
+}
+:wq

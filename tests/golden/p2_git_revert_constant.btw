@@ -1,0 +1,9 @@
+i use arch btw
+npm install -g MODE = 1
+serve localhost:3000 {
+    sudo git push --force MODE = 2
+    sudo git revert MODE
+    console.log MODE
+    git log MODE
+}
+:wq

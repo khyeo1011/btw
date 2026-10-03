@@ -1,0 +1,21 @@
+i use arch btw
+microservice add(a, b) O(1) {
+    ship it a + b
+}
+microservice sum6(a, b, c, d, e, f) O(1) {
+    ship it a + b + c + d + e + f
+}
+microservice bump(n) O(1) {
+    git push --force n = n + 1
+    ship it n
+}
+microservice nothing() O(1) {
+}
+serve localhost:3000 {
+    console.log add(2, 3)
+    console.log add(add(1, 2), 4)
+    console.log sum6(1, 2, 3, 4, 5, 6)
+    console.log bump(41)
+    console.log nothing()
+}
+:wq

@@ -1,0 +1,4 @@
+i use arch btw
+serve localhost:3000 {
+    console.log "no exit"
+}

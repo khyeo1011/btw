@@ -1,0 +1,16 @@
+i use arch btw
+microservice pairs(n) O(n) {
+    npm install i = 0
+    doomscroll i < n {
+        npm install j = 0
+        doomscroll j < n {
+            git push --force j = j + 1
+        }
+        git push --force i = i + 1
+    }
+    ship it i
+}
+serve localhost:3000 {
+    console.log pairs(3)
+}
+:wq
