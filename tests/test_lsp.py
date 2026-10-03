@@ -551,3 +551,17 @@ def test_inlay_hints_only_in_the_requested_range(client):
     hints = inlay_hints(client, uri, {"line": 9, "character": 0}, {"line": 13, "character": 0})
     assert [h["label"] for h in hints] == ["O(?)"]
     assert inlay_hints(client, uri, {"line": 1, "character": 22}, {"line": 11, "character": 0}) == []
+
+
+def test_semantic_tokens_in_a_pipe():
+    source = (
+        "i use arch btw\nmicroservice f(n) O(1) { ship it n }\n"
+        "serve localhost:3000 {\n npm install x = 3\n x | f | console.log\n}\n:wq\n"
+    )
+    line = source.split("\n")[4]
+    assert [
+        (line[span.start.col : span.end.col], kind)
+        for span, kind, _ in lsp.classify(source)
+        if span.start.line == 4
+    ] == [("x", "variable"), ("|", "operator"), ("f", "function"), ("|", "operator"),
+          ("console.log", "function")]

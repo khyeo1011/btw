@@ -12,7 +12,9 @@ Neovim.
 src/btw/lsp.py       code actions, semantic tokens, inlay hints
 src/btw/checker.py   fixes for E426 and E403; related information for E409
 src/btw/parser.py    the fix for E408 (see "E408 lives in the parser" below)
+src/btw/hovers.py    pipe-head hover fix (see 5)
 tests/test_lsp.py    every feature over the stdio protocol
+tests/test_hovers.py the pipe-head hover test
 ```
 
 ## 1. Code actions
@@ -252,3 +254,26 @@ after `:w` `btw check` reported only the W508.
 
 The Neovim log had nothing from the server; no `lsp.log` was written at
 all, so the server never wrote to stderr.
+
+## 5. Hover on the head of a pipe
+
+Pipes landed on `main` (#14) while this card was in progress, and
+`main` was merged into this branch. NOTES-extras.md ("For other cards")
+reported that hovering the head of a pipe (`x` in `x | f`) shows nothing:
+`hovers.name_at` skipped every node whose span missed the cursor, and a
+desugared stage keeps its stage's span (Language Spec 9.4), which doesn't
+cover its first argument. That's true of the desugared Print too, not just
+Call: `x | f | console.log` is a Print with the span of `console.log`.
+
+The project owner asked this card to take the fix. `name_at` no longer
+prunes by span at all: names (Ident and Var) are leaves and never overlap,
+so walking the whole tree finds the same node, and the files are small.
+`test_pipe_head_hovers` fails without the change and passes with it.
+Semantic tokens weren't affected (`lsp.names` never pruned); a test now
+covers a pipe there as well.
+
+### Verified in Neovim
+
+The program from `test_pipe_head_hovers`. `K` on the `x` of
+`x | f | g(y) | console.log` and on the `x` of `console.log x + 1 | f` both
+open `npm install x · number · declared on line 5`.
