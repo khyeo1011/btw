@@ -494,5 +494,3 @@ Diagnostics are sorted by line, then column, then code, and exact duplicates (sa
 | a chained comparison          | E400 | Chained comparisons aren't a thing here. This isn't Python.                         |
 | `serve localhost:8080`        | E409 | Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000. |
 | CLI summary line, pretty mode | none | build failed: 2 errors, 1 warning. Skill issue. / 1 warning. LGTM anyway.           |
-
-SPEC.
