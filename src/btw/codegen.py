@@ -11,8 +11,8 @@ uses the count to align `rsp` to 16 bytes before every call.
 
 Part 1 covered globals, constants, `serve`, every expression and the
 statements that don't need microservices or history. Part 2 adds
-microservices. Anything else is E501, reported before any assembly is
-written.
+microservices, calls and the call depth limit. Anything else is E501, reported before any assembly
+is written.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from btw.span import Pos, Span
 
 INDENT = " " * 8
 SERVE = "serve"
+MAX_DEPTH = 1_000  # Language Spec 8: the 1,001st nested call overflows
 ARG_REGISTERS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
 
 ARITHMETIC = {"+": "add", "-": "sub", "*": "imul"}
@@ -48,20 +49,8 @@ def keyword_span(start: Pos, keyword: str) -> Span:
 
 
 def unsupported(program: ast.Program) -> list[Diagnostic]:
-    """One E501 per call, `git revert` and `git log`."""
+    """One E501 per `git revert` and `git log`."""
     found: list[Diagnostic] = []
-
-    def expr(e: ast.Expr) -> None:
-        match e:
-            case ast.Call(callee=callee, args=args):
-                found.append(e501(f"{callee.name}(...)", e.span))
-                for arg in args:
-                    expr(arg)
-            case ast.Unary(operand=operand):
-                expr(operand)
-            case ast.Binary(left=left, right=right):
-                expr(left)
-                expr(right)
 
     def block(b: ast.Block) -> None:
         for s in b.stmts:
@@ -69,19 +58,13 @@ def unsupported(program: ast.Program) -> list[Diagnostic]:
 
     def stmt(s: ast.Stmt) -> None:
         match s:
-            case ast.VarDecl(value=value) | ast.Assign(value=value) | ast.Print(value=value):
-                expr(value)
-            case ast.ExprStmt(expr=value) | ast.Return(value=ast.Expr() as value):
-                expr(value)
-            case ast.If(cond=cond, then=then, else_=else_):
-                expr(cond)
+            case ast.If(then=then, else_=else_):
                 block(then)
                 if isinstance(else_, ast.Block):
                     block(else_)
                 elif else_ is not None:
                     stmt(else_)
-            case ast.While(cond=cond, body=body):
-                expr(cond)
+            case ast.While(body=body):
                 block(body)
             case ast.Revert():
                 found.append(e501("git revert", s.span))
@@ -90,11 +73,7 @@ def unsupported(program: ast.Program) -> list[Diagnostic]:
 
     for item in program.items:
         match item:
-            case ast.Microservice():
-                block(item.body)
-            case ast.GlobalDecl(value=value):
-                expr(value)
-            case ast.Serve(body=body):
+            case ast.Microservice(body=body) | ast.Serve(body=body):
                 block(body)
     return found
 
@@ -157,6 +136,7 @@ class Codegen:
         self.loop_ends: list[str] = []  # innermost last, for `touch grass`
         self.ret_label = ""
         self.div_zero_used = False
+        self.stack_overflow_used = False
 
     # Emitting
 
@@ -270,12 +250,15 @@ class Codegen:
         if frame:
             self.emit("sub", f"rsp, {frame}", "slots: " + ", ".join(sym.name for sym in slots))
 
-    def epilogue(self, note: str) -> None:
+    def epilogue(self, note: str, leaving: tuple[tuple[str, str, str], ...] = ()) -> None:
         """`ship it` jumps to the return label with its value in rax; falling
-        off the end leaves 0 there."""
+        off the end leaves 0 there. `leaving` runs between the label and
+        `leave`, and must not touch rax."""
         self.text.append("")
         self.emit("xor", "eax, eax", note)
         self.label(self.ret_label)
+        for op, operands, comment in leaving:
+            self.emit(op, operands, comment)
         self.emit("leave")
         self.emit("ret")
 
@@ -300,22 +283,39 @@ class Codegen:
             self.label(".Ldiv_zero")
             self.emit("and", "rsp, -16", "never returns, so just align")
             self.emit("call", "btw_rt_div_zero")
+        if self.stack_overflow_used:
+            self.text.append("")
+            self.label(".Lstack_overflow")
+            self.emit("and", "rsp, -16", "never returns, so just align")
+            self.emit("call", "btw_rt_stack_overflow")
 
     def function_microservice(self, item: ast.Microservice) -> None:
         """`btw_fn_NAME` (Implementation Spec 10.3). The parameters arrive in
         rdi, rsi, rdx, rcx, r8 and r9 and are copied into slots 0 to 5 right
-        after the prologue, so the body treats them like any other local."""
+        after the prologue, so the body treats them like any other local.
+
+        The call depth (Implementation Spec 10.5) is counted in the callee,
+        after the arguments were evaluated, as the interpreter does: `serve`
+        is depth 0, so entering at depth 1,001 overflows. The decrement before
+        `leave` makes no call, so the return value in rax survives."""
         name = item.name.name
         if not self.annotate:
             self.text.append("")  # the annotation brings its own blank line
         self.comment(item.span.start, item.body.span.start)
         self.prologue(f"btw_fn_{name}", name)
+        self.stack_overflow_used = True
+        self.emit("inc", "qword ptr [rip + btw_depth]", "one call deeper")
+        self.emit("cmp", f"qword ptr [rip + btw_depth], {MAX_DEPTH}")
+        self.emit("jg", ".Lstack_overflow", "past 1,000 nested calls?")
         for param, register in zip(item.params, ARG_REGISTERS, strict=False):
             sym = param.sym
             assert isinstance(sym, Symbol), f"unresolved parameter {param.name}"
             self.emit("mov", f"{self.location(sym)}, {register}", sym.name)
         self.block(item.body)
-        self.epilogue("falling off the end ships 0")
+        self.epilogue(
+            "falling off the end ships 0",
+            (("dec", "qword ptr [rip + btw_depth]", "back to the caller's depth"),),
+        )
 
     # Statements (Implementation Spec 10.5)
 
@@ -445,8 +445,23 @@ class Codegen:
                 self.pop("rcx")
                 self.pop("rax")
                 self.binary(op)
+            case ast.Call(callee=callee, args=args):
+                self.lower_call(callee.name, args)
             case _:
                 raise AssertionError(f"unexpected expression {expr!r}")
+
+    def lower_call(self, name: str, args: list[ast.Expr]) -> None:
+        """Implementation Spec 10.4: evaluate the arguments left to right, pop
+        them into the argument registers in reverse order, then `call` pads
+        rsp when an odd number of temporaries is still pushed (10.6). Nothing
+        stays in a register across the call: rax is pushed right away."""
+        assert len(args) <= len(ARG_REGISTERS), f"{name} has {len(args)} arguments"
+        for arg in args:
+            self.expr(arg)
+        for register in reversed(ARG_REGISTERS[: len(args)]):
+            self.pop(register)
+        self.call(f"btw_fn_{name}")
+        self.push("rax", f"{name}(...)")
 
     def binary(self, op: str) -> None:
         """rax op rcx, then push the result."""
