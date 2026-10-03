@@ -10,6 +10,7 @@ from btw.span import Pos, Span
 from btw.tokens import Token, TokenKind as K
 
 GOLDEN = Path(__file__).parent / "golden"
+LISP = " Even Lisp programmers close their parentheses."
 
 # Pipes belong to another card: until it lands, `|` is an unexpected token.
 PIPE_PROGRAMS = {"p2_pipes", "p2_e405_pipe_console_log_value"}
@@ -355,7 +356,7 @@ def test_unclosed_big_o():
     assert m.big_o.degree is None and m.big_o.text == "n"
     assert [d.message for d in diags] == [
         "Syntax error: expected `)`, found `{`.",
-        "Syntax error: expected `)`, found `:wq`.",
+        "Syntax error: expected `)`, found `:wq`." + LISP,
     ]
 
 
@@ -563,7 +564,7 @@ def test_unclosed_paren_is_reported_again_at_wq():
     src = wrap("console.log (1 + 2")
     assert errors(src) == [
         (4, 1, "E400", "Syntax error: expected `)`, found `}`."),
-        (5, 1, "E400", "Syntax error: expected `)`, found `:wq`."),
+        (5, 1, "E400", "Syntax error: expected `)`, found `:wq`." + LISP),
     ]
 
 
@@ -571,7 +572,7 @@ def test_unclosed_paren_at_end_of_file_replaces_missing_brace():
     src = "i use arch btw\nserve localhost:3000 {\n  vibe check (x {\n    console.log 1\n"
     assert errors(src) == [
         (3, 17, "E400", "Syntax error: expected `)`, found `{`."),
-        (5, 1, "E400", "Syntax error: expected `)`, found end of file."),
+        (5, 1, "E400", "Syntax error: expected `)`, found end of file." + LISP),
         (4, 17, "E408", "Error: program never exited. Classic Vim user."),
     ]
 
@@ -581,7 +582,7 @@ def test_unclosed_paren_ignores_extra_closing_parens():
     src = wrap("console.log 1 ) (")
     assert [e[3] for e in errors(src)] == [
         "Syntax error: expected end of line, found `)`.",
-        "Syntax error: expected `)`, found `:wq`.",
+        "Syntax error: expected `)`, found `:wq`." + LISP,
     ]
 
 

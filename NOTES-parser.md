@@ -44,8 +44,10 @@ and 6.
   checker's structure pass, so the checker card must not report it again.
 - **Unclosed `(`** (decided by the project owner): when the program ends
   (at `:wq`, or at the end of the file without one) with a `(` still open,
-  the parser reports "Syntax error: expected `)`, found `:wq`." (or "found
-  end of file.") on that token. It counts parens the way the lexer does: a
+  the parser reports "Syntax error: expected `)`, found `:wq`. Even Lisp
+  programmers close their parentheses." (or "found end of file. Even Lisp
+  ...") on that token. The joke is the owner's request; the Language Spec
+  catalog doesn't have this message yet. It counts parens the way the lexer does: a
   `)` with nothing open is ignored. This report is file-level, so it sits
   outside the one-E400-per-statement budget and replaces any other E400 on
   the same token, such as the outermost block's missing `}`. The lexer drops

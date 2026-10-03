@@ -84,6 +84,7 @@ CHAINED = "Chained comparisons aren't a thing here. This isn't Python."
 SUDO_MISUSE = "`sudo` only works with `git push --force` and `git revert`."
 E408 = "Error: program never exited. Classic Vim user."
 W208 = "208 Already Reported: we know you use Arch."
+UNCLOSED_PAREN_JOKE = "Even Lisp programmers close their parentheses."
 E500 = "It works on my machine. Unfortunately, this is not my machine."
 
 
@@ -228,7 +229,7 @@ class _Parser:
         if depth == 0:
             return
         end = self.peek()
-        message = f"Syntax error: expected `)`, found {found(end)}."
+        message = f"Syntax error: expected `)`, found {found(end)}. {UNCLOSED_PAREN_JOKE}"
         self.diags = [
             d for d in self.diags if not (d.code == "E400" and d.span.start == end.span.start)
         ]
