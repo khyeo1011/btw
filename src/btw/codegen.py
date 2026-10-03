@@ -1,0 +1,460 @@
+"""x86-64 code generation (Implementation Spec 10).
+
+`gen(program, symbols, annotate=False, source=None)` turns a checked program
+with no errors into one GNU as file in Intel syntax, returned as
+`(assembly_text, diagnostics)`. The driver links it with `runtime/btw_rt.c`.
+
+It's a stack machine: every expression leaves exactly one 8-byte value
+pushed, and the temporary stack is empty at every statement boundary. The
+generator counts pushes at compile time (`depth`) and asserts both rules, and
+uses the count to align `rsp` to 16 bytes before every call.
+
+Part 1 covers globals, constants, `serve`, every expression and the
+statements that don't need microservices or history. Anything else is E501,
+reported before any assembly is written.
+"""
+
+from __future__ import annotations
+
+from btw import ast
+from btw.ast import Type
+from btw.checker import Symbol, SymbolKind, Symbols
+from btw.diagnostics import Diagnostic, Severity
+from btw.span import Pos, Span
+
+INDENT = " " * 8
+SERVE = "serve"
+
+ARITHMETIC = {"+": "add", "-": "sub", "*": "imul"}
+COMPARISONS = {"==": "sete", "!=": "setne", "<": "setl", "<=": "setle", ">": "setg", ">=": "setge"}
+
+
+def e501(construct: str, span: Span) -> Diagnostic:
+    return Diagnostic(
+        "E501",
+        Severity.ERROR,
+        f"Not implemented: `{construct}` in native builds. Try `btw run`.",
+        span,
+    )
+
+
+def keyword_span(start: Pos, keyword: str) -> Span:
+    return Span(start, Pos(start.line, start.col + len(keyword)))
+
+
+# E501: what the native backend can't build yet
+
+
+def unsupported(program: ast.Program) -> list[Diagnostic]:
+    """One E501 per microservice, call, `git revert` and `git log`."""
+    found: list[Diagnostic] = []
+
+    def expr(e: ast.Expr) -> None:
+        match e:
+            case ast.Call(callee=callee, args=args):
+                found.append(e501(f"{callee.name}(...)", e.span))
+                for arg in args:
+                    expr(arg)
+            case ast.Unary(operand=operand):
+                expr(operand)
+            case ast.Binary(left=left, right=right):
+                expr(left)
+                expr(right)
+
+    def block(b: ast.Block) -> None:
+        for s in b.stmts:
+            stmt(s)
+
+    def stmt(s: ast.Stmt) -> None:
+        match s:
+            case ast.VarDecl(value=value) | ast.Assign(value=value) | ast.Print(value=value):
+                expr(value)
+            case ast.ExprStmt(expr=value) | ast.Return(value=ast.Expr() as value):
+                expr(value)
+            case ast.If(cond=cond, then=then, else_=else_):
+                expr(cond)
+                block(then)
+                if isinstance(else_, ast.Block):
+                    block(else_)
+                elif else_ is not None:
+                    stmt(else_)
+            case ast.While(cond=cond, body=body):
+                expr(cond)
+                block(body)
+            case ast.Revert():
+                found.append(e501("git revert", s.span))
+            case ast.Log():
+                found.append(e501("git log", s.span))
+
+    for item in program.items:
+        match item:
+            case ast.Microservice():
+                found.append(e501("microservice", keyword_span(item.span.start, "microservice")))
+                block(item.body)
+            case ast.GlobalDecl(value=value):
+                expr(value)
+            case ast.Serve(body=body):
+                block(body)
+    return found
+
+
+# Assembly text helpers
+
+
+def instruction(op: str, operands: str = "") -> str:
+    """`        mov     rax, rcx`: the mnemonic padded so operands line up."""
+    return f"{INDENT}{op:<7} {operands}".rstrip() if operands else f"{INDENT}{op}"
+
+
+def escape(text: str) -> str:
+    """A `.string` literal (Implementation Spec 10.8): backslash, quote, newline
+    and tab escaped, every other byte outside printable ASCII in octal."""
+    out = []
+    for byte in text.encode("utf-8"):
+        char = chr(byte)
+        match char:
+            case "\\":
+                out.append("\\\\")
+            case '"':
+                out.append('\\"')
+            case "\n":
+                out.append("\\n")
+            case "\t":
+                out.append("\\t")
+            case _ if 0x20 <= byte < 0x7F:
+                out.append(char)
+            case _:
+                out.append(f"\\{byte:03o}")
+    return '"' + "".join(out) + '"'
+
+
+def utf16_index(line: str, col: int) -> int:
+    """The string index of a UTF-16 column (Language Spec 1)."""
+    units = 0
+    for index, char in enumerate(line):
+        if units >= col:
+            return index
+        units += 2 if ord(char) > 0xFFFF else 1
+    return len(line)
+
+
+# The generator
+
+
+class Codegen:
+    def __init__(
+        self, program: ast.Program, symbols: Symbols, annotate: bool, source: str | None
+    ) -> None:
+        self.program = program
+        self.symbols = symbols
+        self.annotate = annotate
+        self.source_lines = source.split("\n") if source is not None else None
+        self.text: list[str] = []
+        self.strings: dict[str, str] = {}  # contents to label, in first-use order
+        self.labels = 0
+        self.depth = 0  # temporaries pushed right now, tracked at compile time
+        self.loop_ends: list[str] = []  # innermost last, for `touch grass`
+        self.ret_label = ""
+        self.div_zero_used = False
+
+    # Emitting
+
+    def emit(self, op: str, operands: str = "", note: str | None = None) -> None:
+        line = instruction(op, operands)
+        if note and self.annotate:
+            line = f"{line:<39} # {note}"
+        self.text.append(line)
+
+    def label(self, name: str) -> None:
+        self.text.append(f"{name}:")
+
+    def new_label(self, *kinds: str) -> list[str]:
+        """`.Lelse3`, `.Lendif3`: one number shared by the labels of a construct."""
+        self.labels += 1
+        return [f".L{kind}{self.labels}" for kind in kinds]
+
+    def push(self, operand: str, note: str | None = None) -> None:
+        self.emit("push", operand, note)
+        self.depth += 1
+
+    def pop(self, register: str) -> None:
+        assert self.depth > 0, "pop from an empty temporary stack"
+        self.emit("pop", register)
+        self.depth -= 1
+
+    def call(self, function: str) -> None:
+        """Implementation Spec 10.6: rsp is aligned when an even number of
+        temporaries is pushed, so pad by 8 bytes when the count is odd."""
+        if self.depth % 2:
+            self.emit("sub", "rsp, 8", "align the stack for the call")
+            self.emit("call", function)
+            self.emit("add", "rsp, 8")
+        else:
+            self.emit("call", function)
+
+    def string(self, text: str) -> str:
+        if text not in self.strings:
+            self.strings[text] = f".Lstr{len(self.strings)}"
+        return self.strings[text]
+
+    # Annotations (Implementation Spec 10.9)
+
+    def source_text(self, start: Pos, end: Pos) -> str:
+        """The source from `start` to `end`, or to the end of `start`'s line when
+        `end` is on a later line."""
+        assert self.source_lines is not None
+        line = self.source_lines[start.line].removesuffix("\r")
+        stop = utf16_index(line, end.col) if end.line == start.line else len(line)
+        return line[utf16_index(line, start.col) : stop].strip()
+
+    def comment(self, start: Pos, end: Pos, prefix: str = "") -> None:
+        """`# line 6: vibe check (i % 15 == 0)` before a statement's code."""
+        if not self.annotate:
+            return
+        text = f"line {start.line + 1}"
+        if self.source_lines is not None:
+            text += f": {prefix}{self.source_text(start, end)}"
+        self.text.append("")
+        self.text.append(f"{INDENT}# {text}")
+
+    # Variables (Implementation Spec 10.3)
+
+    def location(self, sym: Symbol) -> str:
+        if sym.kind in (SymbolKind.GLOBAL, SymbolKind.CONST):
+            return f"qword ptr [rip + btw_g_{sym.name}]"
+        assert sym.slot is not None, f"no slot for {sym.name}"
+        return f"qword ptr [rbp - {8 * (sym.slot + 1)}]"
+
+    # The file (Implementation Spec 10.2)
+
+    def generate(self) -> str:
+        serve = next(item for item in self.program.items if isinstance(item, ast.Serve))
+        globals_ = [item for item in self.program.items if isinstance(item, ast.GlobalDecl)]
+        self.function_main(serve, globals_)
+
+        out = [f"{INDENT}.intel_syntax noprefix", ""]
+        if self.strings:
+            out.append(f"{INDENT}.section .rodata")
+            out += [f"{label}: .string {escape(text)}" for text, label in self.strings.items()]
+            out.append("")
+        out.append(f"{INDENT}.data")
+        for item in globals_:
+            out.append(f"btw_g_{item.name.name}: .quad 0")
+        out.append("btw_depth: .quad 0")
+        out.append("")
+        out.append(f"{INDENT}.text")
+        out.append(f"{INDENT}.globl main")
+        out += self.text
+        out.append("")
+        out.append(f'{INDENT}.section .note.GNU-stack,"",@progbits')
+        return "\n".join(out) + "\n"
+
+    def function_main(self, serve: ast.Serve, globals_: list[ast.GlobalDecl]) -> None:
+        """Global initializers in source order, then the `serve` body
+        (Language Spec 10). `ship it` jumps to `.Lret_main` with the exit
+        code in rax."""
+        slots = self.symbols.frames.get(SERVE, [])
+        for k, sym in enumerate(slots):
+            sym.slot = k
+        frame = (8 * len(slots) + 15) // 16 * 16
+        self.ret_label = ".Lret_main"
+
+        self.label("main")
+        self.emit("push", "rbp")
+        self.emit("mov", "rbp, rsp")
+        if frame:
+            self.emit("sub", f"rsp, {frame}", "slots: " + ", ".join(sym.name for sym in slots))
+        for item in globals_:
+            self.comment(item.span.start, item.span.end)
+            self.store(item.name.sym, item.value)
+        self.comment(serve.span.start, serve.body.span.start)
+        self.block(serve.body)
+        self.text.append("")
+        self.emit("xor", "eax, eax", "falling off the end of serve exits with 0")
+        self.label(self.ret_label)
+        self.emit("leave")
+        self.emit("ret")
+
+        if self.div_zero_used:
+            self.text.append("")
+            self.label(".Ldiv_zero")
+            self.emit("and", "rsp, -16", "never returns, so just align")
+            self.emit("call", "btw_rt_div_zero")
+
+    # Statements (Implementation Spec 10.5)
+
+    def block(self, block: ast.Block) -> None:
+        for stmt in block.stmts:
+            self.stmt(stmt)
+
+    def stmt(self, stmt: ast.Stmt, else_if: bool = False) -> None:
+        assert self.depth == 0, f"{self.depth} temporaries before line {stmt.span.start.line + 1}"
+        match stmt:
+            case ast.If(cond=cond, then=then, else_=else_):
+                self.comment(stmt.span.start, then.span.start, "skill issue " if else_if else "")
+                self.lower_if(cond, then, else_)
+            case ast.While(cond=cond, body=body):
+                self.comment(stmt.span.start, body.span.start)
+                self.lower_while(cond, body)
+            case _:
+                self.comment(stmt.span.start, stmt.span.end)
+                self.simple(stmt)
+        assert self.depth == 0, f"{self.depth} temporaries after line {stmt.span.start.line + 1}"
+
+    def simple(self, stmt: ast.Stmt) -> None:
+        match stmt:
+            case ast.VarDecl(name=name, value=value):
+                self.store(name.sym, value)
+            case ast.Assign(name=target, value=value):
+                self.store(target.sym, value)
+            case ast.Break():
+                self.emit("jmp", self.loop_ends[-1], "touch grass")
+            case ast.Return(value=None):
+                self.emit("xor", "eax, eax")
+                self.emit("jmp", self.ret_label, "ship it")
+            case ast.Return(value=value):
+                self.expr(value)
+                self.pop("rax")
+                self.emit("jmp", self.ret_label, "ship it")
+            case ast.Print(value=ast.StrLit(value=text)):
+                self.emit("lea", f"rdi, [rip + {self.string(text)}]")
+                self.call("btw_rt_print_str")
+            case ast.Print(value=value):
+                self.expr(value)
+                self.pop("rdi")
+                match value.ty:
+                    case Type.NUMBER:
+                        self.call("btw_rt_print_int")
+                    case Type.BOOLEAN:
+                        self.call("btw_rt_print_bool")
+                    case ty:
+                        raise AssertionError(f"can't print a {ty}")
+            case ast.ExprStmt(expr=expr):
+                self.expr(expr)
+                self.emit("add", "rsp, 8", "drop the unused value")
+                self.depth -= 1
+            case _:
+                raise AssertionError(f"unexpected statement {stmt!r}")
+
+    def store(self, sym: Symbol, value: ast.Expr) -> None:
+        self.expr(value)
+        self.pop("rax")
+        self.emit("mov", f"{self.location(sym)}, rax", sym.name)
+
+    def lower_if(self, cond: ast.Expr, then: ast.Block, else_: ast.Block | ast.If | None) -> None:
+        else_label, end_label = self.new_label("else", "endif")
+        self.expr(cond)
+        self.pop("rax")
+        self.emit("test", "rax, rax")
+        self.emit("jz", else_label if else_ is not None else end_label, "404: skip the block")
+        self.block(then)
+        if else_ is not None:
+            self.emit("jmp", end_label)
+            self.label(else_label)
+            if isinstance(else_, ast.If):
+                self.stmt(else_, else_if=True)
+            else:
+                self.comment(else_.span.start, else_.span.start, "skill issue")
+                self.block(else_)
+        self.label(end_label)
+
+    def lower_while(self, cond: ast.Expr, body: ast.Block) -> None:
+        loop_label, end_label = self.new_label("loop", "loop")
+        end_label += "_end"
+        self.label(loop_label)
+        self.expr(cond)
+        self.pop("rax")
+        self.emit("test", "rax, rax")
+        self.emit("jz", end_label, "404: stop scrolling")
+        self.loop_ends.append(end_label)
+        self.block(body)
+        self.loop_ends.pop()
+        self.emit("jmp", loop_label, "keep scrolling")
+        self.label(end_label)
+
+    # Expressions (Implementation Spec 10.4)
+
+    def expr(self, expr: ast.Expr) -> None:
+        before = self.depth
+        self.lower_expr(expr)
+        assert self.depth == before + 1, f"expression left {self.depth - before} values"
+
+    def lower_expr(self, expr: ast.Expr) -> None:
+        match expr:
+            case ast.IntLit(value=value):
+                if -(2**31) <= value < 2**31:
+                    self.push(str(value))  # push sign-extends a 32-bit immediate
+                else:
+                    self.emit("mov", f"rax, {value}")
+                    self.push("rax")
+            case ast.BoolLit(value=value):
+                self.push("1" if value else "0", "LGTM" if value else "404")
+            case ast.Var(sym=sym):
+                self.push(self.location(sym), sym.name)
+            case ast.Unary(op="-", operand=operand):
+                self.expr(operand)
+                self.pop("rax")
+                self.emit("neg", "rax")
+                self.push("rax")
+            case ast.Unary(op="!", operand=operand):
+                self.expr(operand)
+                self.pop("rax")
+                self.emit("xor", "rax, 1")
+                self.push("rax")
+            case ast.Binary(op="&&" | "||" as op, left=left, right=right):
+                self.short_circuit(op, left, right)
+            case ast.Binary(op=op, left=left, right=right):
+                self.expr(left)
+                self.expr(right)
+                self.pop("rcx")
+                self.pop("rax")
+                self.binary(op)
+            case _:
+                raise AssertionError(f"unexpected expression {expr!r}")
+
+    def binary(self, op: str) -> None:
+        """rax op rcx, then push the result."""
+        if op in ARITHMETIC:
+            self.emit(ARITHMETIC[op], "rax, rcx")
+            self.push("rax")
+        elif op in ("/", "%"):
+            self.div_zero_used = True
+            self.emit("test", "rcx, rcx")
+            self.emit("jz", ".Ldiv_zero", "dividing by zero?")
+            self.emit("cqo")
+            self.emit("idiv", "rcx")
+            self.push("rax" if op == "/" else "rdx", "quotient" if op == "/" else "remainder")
+        elif op in COMPARISONS:
+            self.emit("cmp", "rax, rcx")
+            self.emit(COMPARISONS[op], "al")
+            self.emit("movzx", "eax, al")
+            self.push("rax")
+        else:
+            raise AssertionError(f"unexpected operator {op!r}")
+
+    def short_circuit(self, op: str, left: ast.Expr, right: ast.Expr) -> None:
+        """`&&` skips the right side when the left is 404, `||` when it's LGTM."""
+        kind, jump, value = ("false", "jz", "0") if op == "&&" else ("true", "jnz", "1")
+        decided, end = self.new_label(kind, "end")
+        self.expr(left)
+        self.pop("rax")
+        self.emit("test", "rax, rax")
+        self.emit(jump, decided)
+        self.expr(right)
+        self.emit("jmp", end)
+        self.label(decided)
+        self.depth -= 1  # this path never pushed the right side
+        self.push(value, "LGTM" if value == "1" else "404")
+        self.label(end)
+
+
+def gen(
+    program: ast.Program, symbols: Symbols, annotate: bool = False, source: str | None = None
+) -> tuple[str, list[Diagnostic]]:
+    """Assembly for a checked program with no errors. With `annotate`, each
+    statement gets a comment with its line number, plus its source text when
+    `source` is given. Unsupported constructs give E501 and no assembly."""
+    diagnostics = unsupported(program)
+    if diagnostics:
+        return "", diagnostics
+    return Codegen(program, symbols, annotate, source).generate(), []

@@ -129,7 +129,9 @@ def asm(source: str, path: str, annotate: bool = False) -> tuple[list[Diagnostic
     program, symbols, diagnostics = check(source, path)
     if has_errors(diagnostics):
         return diagnostics, None
-    text, codegen_diagnostics = _component("codegen").gen(program, symbols, annotate=annotate)
+    text, codegen_diagnostics = _component("codegen").gen(
+        program, symbols, annotate=annotate, source=source
+    )
     diagnostics = sort_diagnostics([*diagnostics, *codegen_diagnostics])
     if has_errors(diagnostics):
         return diagnostics, None
