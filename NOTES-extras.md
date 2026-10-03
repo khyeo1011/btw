@@ -114,3 +114,36 @@ Files: `src/btw/lexer.py`, `src/btw/parser.py`, `tests/test_lexer.py`,
    `i++` also gets W204 "This expression does nothing." on `i`. Dropping
    broken expression statements would also hide a real E404 on `j++` for an
    undeclared `j`, so it stays. The same already happens for `x @`.
+
+## Status
+
+Whole suite, `uv run pytest` on `claude/elegant-davinci-wyrgrd`:
+
+```
+============================ 1129 passed in 28.80s =============================
+```
+
+`uv run pytest tests/test_golden.py -k p2`: 17 passed, interpreter and
+native steps both (gcc is installed here). No xfails or skips are left in
+the suite.
+
+Works:
+
+- Pipes, including E405 for a void pipe used as a value: `p2_pipes`,
+  `p2_e405_pipe_console_log_value`.
+- Works on my machine (W200, W304) and git history (interpreter, E403 on
+  revert, E405 on microservice locals): already in place, every p2 golden
+  for them passes.
+- Roasts: `===`, `;`, `++`, `007`, chained comparisons, `serve
+  localhost:8080`.
+
+Doesn't work, or not done:
+
+- The CLI summary-line roast (Language Spec 13, last row): it lives in
+  `cli.py`, outside this card's lexer and parser scope.
+- Hovering the head of a pipe shows nothing (see "For other cards" under
+  pipes; the fix belongs in `hovers.py`).
+- Open questions above: other ports, the `++` variable name, the W204
+  cascade on `i++`.
+- Branch: the session assigned `claude/elegant-davinci-wyrgrd`, not a
+  `feature/NAME` branch as CLAUDE.md asks. Nothing is merged into `main`.
