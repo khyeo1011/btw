@@ -47,7 +47,7 @@ def e501s(source: str) -> list[tuple[str, Span]]:
     return [(d.message, d.span) for d in diagnostics if d.code == "E501"]
 
 
-def test_microservice_and_call_are_e501():
+def test_call_is_e501():
     source = (
         "i use arch btw\n"
         "microservice f(n) O(1) {\n"
@@ -59,10 +59,6 @@ def test_microservice_and_call_are_e501():
         ":wq\n"
     )
     assert e501s(source) == [
-        (
-            "Not implemented: `microservice` in native builds. Try `btw run`.",
-            Span(Pos(1, 0), Pos(1, 12)),
-        ),
         (
             "Not implemented: `f(...)` in native builds. Try `btw run`.",
             Span(Pos(5, 16), Pos(5, 20)),
@@ -148,6 +144,60 @@ def test_big_literals_use_mov():
     assert "push    2147483647" not in text
 
 
+def microservices(*items: str, body: tuple[str, ...] = ("    console.log 1",)) -> str:
+    lines = ["i use arch btw", *items, "serve localhost:3000 {", *body, "}", ":wq"]
+    return "\n".join(lines) + "\n"
+
+
+def test_microservice_prologue_and_epilogue():
+    source = microservices(
+        "microservice sum6(a, b, c, d, e, f) O(1) {",
+        "    npm install g = a + b + c + d + e + f",
+        "    ship it g",
+        "}",
+        "microservice nothing() O(1) {",
+        "}",
+    )
+    _, text = asm(source)
+    assert (
+        "btw_fn_sum6:\n"
+        "        push    rbp\n"
+        "        mov     rbp, rsp\n"
+        "        sub     rsp, 64\n"
+        "        mov     qword ptr [rbp - 8], rdi\n"
+        "        mov     qword ptr [rbp - 16], rsi\n"
+        "        mov     qword ptr [rbp - 24], rdx\n"
+        "        mov     qword ptr [rbp - 32], rcx\n"
+        "        mov     qword ptr [rbp - 40], r8\n"
+        "        mov     qword ptr [rbp - 48], r9\n"
+    ) in text
+    assert "        jmp     .Lret_sum6\n" in text
+    assert (
+        "btw_fn_nothing:\n"
+        "        push    rbp\n"
+        "        mov     rbp, rsp\n"
+        "\n"
+        "        xor     eax, eax\n"
+        ".Lret_nothing:\n"
+        "        leave\n"
+        "        ret\n"
+    ) in text
+
+
+def test_serve_and_a_microservice_named_main_have_their_own_labels():
+    _, text = asm(microservices("microservice main() O(1) {", "    ship it 1", "}"))
+    assert "main:\n" in text and "btw_fn_main:\n" in text
+    assert text.count(".Lret_serve:\n") == 1
+    assert text.count(".Lret_main:\n") == 1
+
+
+def test_annotate_microservice_header():
+    source = microservices("microservice f(n) O(1) {", "    ship it n", "}")
+    _, text = asm(source, annotate=True)
+    assert "\n\n        # line 2: microservice f(n) O(1)\nbtw_fn_f:\n" in text
+    assert "\n\n\n" not in text
+
+
 # The push-depth invariant
 
 
@@ -219,6 +269,17 @@ DIFFERENTIAL = {
         "    console.log z || 5 % 0 == 1",
     ),
     "expression_statement": program("    npm install x = 2", "    x * 2 + 1", "    console.log x"),
+    "libc_names": microservices(
+        "microservice main(a) O(1) {",
+        "    ship it a / 0",
+        "}",
+        "microservice printf() O(1) {",
+        "}",
+        "microservice exit(x) O(n) {",
+        "    doomscroll LGTM { ship it x }",
+        "}",
+        body=("    console.log 1", "    ship it 7"),
+    ),
 }
 
 

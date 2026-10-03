@@ -9,9 +9,10 @@ pushed, and the temporary stack is empty at every statement boundary. The
 generator counts pushes at compile time (`depth`) and asserts both rules, and
 uses the count to align `rsp` to 16 bytes before every call.
 
-Part 1 covers globals, constants, `serve`, every expression and the
-statements that don't need microservices or history. Anything else is E501,
-reported before any assembly is written.
+Part 1 covered globals, constants, `serve`, every expression and the
+statements that don't need microservices or history. Part 2 adds
+microservices. Anything else is E501, reported before any assembly is
+written.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from btw.span import Pos, Span
 
 INDENT = " " * 8
 SERVE = "serve"
+ARG_REGISTERS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
 
 ARITHMETIC = {"+": "add", "-": "sub", "*": "imul"}
 COMPARISONS = {"==": "sete", "!=": "setne", "<": "setl", "<=": "setle", ">": "setg", ">=": "setge"}
@@ -46,7 +48,7 @@ def keyword_span(start: Pos, keyword: str) -> Span:
 
 
 def unsupported(program: ast.Program) -> list[Diagnostic]:
-    """One E501 per microservice, call, `git revert` and `git log`."""
+    """One E501 per call, `git revert` and `git log`."""
     found: list[Diagnostic] = []
 
     def expr(e: ast.Expr) -> None:
@@ -89,7 +91,6 @@ def unsupported(program: ast.Program) -> list[Diagnostic]:
     for item in program.items:
         match item:
             case ast.Microservice():
-                found.append(e501("microservice", keyword_span(item.span.start, "microservice")))
                 block(item.body)
             case ast.GlobalDecl(value=value):
                 expr(value)
@@ -231,6 +232,10 @@ class Codegen:
         serve = next(item for item in self.program.items if isinstance(item, ast.Serve))
         globals_ = [item for item in self.program.items if isinstance(item, ast.GlobalDecl)]
         self.function_main(serve, globals_)
+        for item in self.program.items:
+            if isinstance(item, ast.Microservice):
+                self.function_microservice(item)
+        self.handlers()
 
         out = [f"{INDENT}.intel_syntax noprefix", ""]
         if self.strings:
@@ -249,37 +254,68 @@ class Codegen:
         out.append(f'{INDENT}.section .note.GNU-stack,"",@progbits')
         return "\n".join(out) + "\n"
 
-    def function_main(self, serve: ast.Serve, globals_: list[ast.GlobalDecl]) -> None:
-        """Global initializers in source order, then the `serve` body
-        (Language Spec 10). `ship it` jumps to `.Lret_main` with the exit
-        code in rax."""
-        slots = self.symbols.frames.get(SERVE, [])
+    def prologue(self, symbol: str, owner: str) -> None:
+        """Implementation Spec 10.3: the label, then `push rbp`, `mov rbp, rsp`
+        and `sub rsp, FRAME`, with one 8-byte slot per parameter and local in
+        `symbols.frames` order. FRAME is rounded up to 16 bytes, so rsp stays
+        aligned (10.6), and the `sub` is left out when there are no slots."""
+        slots = self.symbols.frames.get(owner, [])
         for k, sym in enumerate(slots):
             sym.slot = k
         frame = (8 * len(slots) + 15) // 16 * 16
-        self.ret_label = ".Lret_main"
-
-        self.label("main")
+        self.ret_label = f".Lret_{owner}"
+        self.label(symbol)
         self.emit("push", "rbp")
         self.emit("mov", "rbp, rsp")
         if frame:
             self.emit("sub", f"rsp, {frame}", "slots: " + ", ".join(sym.name for sym in slots))
+
+    def epilogue(self, note: str) -> None:
+        """`ship it` jumps to the return label with its value in rax; falling
+        off the end leaves 0 there."""
+        self.text.append("")
+        self.emit("xor", "eax, eax", note)
+        self.label(self.ret_label)
+        self.emit("leave")
+        self.emit("ret")
+
+    def function_main(self, serve: ast.Serve, globals_: list[ast.GlobalDecl]) -> None:
+        """Global initializers in source order, then the `serve` body
+        (Language Spec 10). `ship it` jumps to `.Lret_serve` with the exit
+        code in rax. `serve` is a reserved word, so the label can't collide
+        with a microservice's `.Lret_NAME`, even one named `main`."""
+        self.prologue("main", SERVE)
         for item in globals_:
             self.comment(item.span.start, item.span.end)
             self.store(item.name.sym, item.value)
         self.comment(serve.span.start, serve.body.span.start)
         self.block(serve.body)
-        self.text.append("")
-        self.emit("xor", "eax, eax", "falling off the end of serve exits with 0")
-        self.label(self.ret_label)
-        self.emit("leave")
-        self.emit("ret")
+        self.epilogue("falling off the end of serve exits with 0")
 
+    def handlers(self) -> None:
+        """The shared runtime error handlers, after every function so any of
+        them can jump here. They never return, so they just align rsp."""
         if self.div_zero_used:
             self.text.append("")
             self.label(".Ldiv_zero")
             self.emit("and", "rsp, -16", "never returns, so just align")
             self.emit("call", "btw_rt_div_zero")
+
+    def function_microservice(self, item: ast.Microservice) -> None:
+        """`btw_fn_NAME` (Implementation Spec 10.3). The parameters arrive in
+        rdi, rsi, rdx, rcx, r8 and r9 and are copied into slots 0 to 5 right
+        after the prologue, so the body treats them like any other local."""
+        name = item.name.name
+        if not self.annotate:
+            self.text.append("")  # the annotation brings its own blank line
+        self.comment(item.span.start, item.body.span.start)
+        self.prologue(f"btw_fn_{name}", name)
+        for param, register in zip(item.params, ARG_REGISTERS, strict=False):
+            sym = param.sym
+            assert isinstance(sym, Symbol), f"unresolved parameter {param.name}"
+            self.emit("mov", f"{self.location(sym)}, {register}", sym.name)
+        self.block(item.body)
+        self.epilogue("falling off the end ships 0")
 
     # Statements (Implementation Spec 10.5)
 
