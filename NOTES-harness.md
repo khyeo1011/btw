@@ -62,16 +62,16 @@ The spec fixes module names but not every function. `src/btw/driver.py`
 calls these; a component that differs should update the driver in the same
 change.
 
-| Module         | Function                                  | Returns                           |
-| -------------- | ----------------------------------------- | --------------------------------- |
-| `btw.lexer`    | `lex(source)`                             | `(tokens, comments, diagnostics)` |
-| `btw.parser`   | `parse(tokens, comments)`                 | `(program, diagnostics)`          |
-| `btw.checker`  | `check(program, comments)`                | `(symbols, diagnostics)`          |
-| `btw.bigo`     | `check_bigo(program)` (spec 8)            | diagnostics                       |
-| `btw.suppress` | `apply(program, diagnostics)`             | the diagnostics after suppression |
-| `btw.interp`   | `run(program, symbols, stdout, stderr)`   | the exit code                     |
-| `btw.codegen`  | `gen(program, symbols, annotate=False)`   | `(assembly_text, diagnostics)`    |
-| `btw.lsp`      | `main()` (the `btw-lsp` entry point)      | nothing; serves stdio until exit  |
+| Module         | Function                                    | Returns                                   |
+| -------------- | ------------------------------------------- | ----------------------------------------- |
+| `btw.lexer`    | `lex(source)`                               | `(tokens, comments, diagnostics)`         |
+| `btw.parser`   | `parse(tokens, comments)`                   | `(program, diagnostics)`                  |
+| `btw.checker`  | `check(program, comments)`                  | `(symbols, diagnostics)`                  |
+| `btw.bigo`     | `check_bigo(program, tokens=None)` (spec 8) | diagnostics (W102's fix needs the tokens) |
+| `btw.suppress` | `apply(program, diagnostics)`               | the diagnostics after suppression         |
+| `btw.interp`   | `run(program, symbols, stdout, stderr)`     | the exit code                             |
+| `btw.codegen`  | `gen(program, symbols, annotate=False)`     | `(assembly_text, diagnostics)`            |
+| `btw.lsp`      | `main()` (the `btw-lsp` entry point)        | nothing; serves stdio until exit          |
 
 `btw build` links with `runtime/btw_rt.c` at the repo root, as in spec 10.1.
 

@@ -102,7 +102,7 @@ def check(source: str, path: str):
     except NotImplementedError:
         pass  # until the Big O card lands, there are no Big O diagnostics
     else:
-        diagnostics += bigo.check_bigo(program)
+        diagnostics += bigo.check_bigo(program, tokens)  # tokens locate W102's fix
     try:
         suppress = _component("suppress")
     except NotImplementedError:

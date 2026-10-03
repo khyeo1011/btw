@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from btw import driver
-from btw.bigo import UNKNOWN, check_bigo, costs, format_complexity, infer
-from btw.diagnostics import Severity
+from btw import ast, driver
+from btw.bigo import UNKNOWN, check_bigo, costs, format_complexity, infer, params_close
+from btw.diagnostics import Edit, Fix, Severity
 from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -451,3 +451,155 @@ def test_unclosed_paren_is_reported(src, expected):
 def test_closed_multiline_params_with_comment_are_clean():
     src = ARCH + "microservice f(a, // TODO more\n  b\n  ) O(1) {\n ship it a\n}\n" + SERVE
     assert syntax_errors(src) == []
+
+
+@pytest.mark.parametrize(
+    "src", [src for name, (src, _) in UNCLOSED.items() if name.startswith("params_")]
+)
+def test_unclosed_params_get_no_w102_fix(src):
+    _, _, found = driver.check(src, "test.btw")
+    assert "E400" in [d.code for d in found]
+    [w102] = [d for d in found if d.code == "W102"]
+    assert w102.fixes == []
+
+
+# Quick fixes (P2): Language Spec 11, the Quick fix column
+
+
+def source(*services: str) -> str:
+    return ARCH + "\n".join(services) + "\n" + SERVE
+
+
+def tokens_and_service(src: str):
+    tokens, _, _ = driver.lex(src)
+    prog, _ = driver.parse(src)
+    ms = next(item for item in prog.items if isinstance(item, ast.Microservice))
+    return tokens, ms
+
+
+def bigo_diagnostics(src: str):
+    tokens, _, _ = driver.lex(src)
+    prog, _ = driver.parse(src)
+    return check_bigo(prog, tokens)
+
+
+def utf16_index(src: str, pos: Pos) -> int:
+    """The string index of a 0-based line and UTF-16 column."""
+    index = sum(len(line) + 1 for line in src.split("\n")[: pos.line])
+    units = 0
+    while units < pos.col:
+        units += 2 if ord(src[index]) > 0xFFFF else 1
+        index += 1
+    return index
+
+
+def apply_fix(src: str, fix: Fix) -> str:
+    for edit in sorted(fix.edits, key=lambda e: e.span.start, reverse=True):
+        start, end = utf16_index(src, edit.span.start), utf16_index(src, edit.span.end)
+        src = src[:start] + edit.text + src[end:]
+    return src
+
+
+LINEAR = " npm install i = 0\n doomscroll i < n { git push --force i = i + 1 }"
+
+
+@pytest.mark.parametrize(
+    "service, close",
+    [
+        ("microservice f(n) {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n){\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f() {\n ship it 1\n}", span(1, 15, 1, 16)),
+        ("microservice f( ) {\n ship it 1\n}", span(1, 16, 1, 17)),
+        ("microservice f(a, // TODO x\n   b\n  ) {\n ship it a\n}", span(3, 2, 3, 3)),
+        ("microservice f(n)\n{\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n)", span(1, 16, 1, 17)),
+        ("microservice f(n) junk {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(a b) {\n ship it a\n}", span(1, 18, 1, 19)),
+        ("microservice f(n) O(1) {\n ship it n\n}", span(1, 16, 1, 17)),
+        ("microservice f(n {\n ship it n\n}", None),
+        ("microservice f(n\n{\n ship it n\n}", None),
+        ("microservice f( {\n ship it 1\n}", None),
+        ("microservice f(n O(n) {\n ship it n\n}", None),
+    ],
+    ids=[
+        "space", "no_space", "zero", "zero_spaced", "multiline_comment", "brace_next_line",
+        "no_body", "junk", "bad_param", "annotated", "missing", "missing_newline",
+        "missing_zero", "missing_before_big_o",
+    ],
+)
+def test_params_close(service, close):
+    assert params_close(*tokens_and_service(source(service))) == close
+
+
+@pytest.mark.parametrize("tail", ["microservice f(", "microservice f(a, b"])
+def test_params_close_at_end_of_file(tail):
+    assert params_close(*tokens_and_service(ARCH + tail)) is None
+
+
+def test_w102_fix_linear():
+    [d] = bigo_diagnostics(source(f"microservice count(n) {{\n{LINEAR}\n}}"))
+    assert d.fixes == [Fix("Add SLA O(n)", [Edit(span(1, 21, 1, 21), " O(n)")])]
+
+
+def test_w102_fix_constant():
+    [d] = bigo_diagnostics(source("microservice f() {\n ship it 1\n}"))
+    assert d.fixes == [Fix("Add SLA O(1)", [Edit(span(1, 16, 1, 16), " O(1)")])]
+
+
+def test_w102_fix_quadratic_uses_the_spec_superscript():
+    [d] = bigo_diagnostics(source(f"microservice f(n) {{\n doomscroll LGTM {{\n{LINEAR}\n }}\n}}"))
+    assert d.fixes == [Fix("Add SLA O(n²)", [Edit(span(1, 17, 1, 17), " O(n²)")])]
+
+
+def test_w102_without_tokens_has_no_fix():
+    [d] = check_bigo(program(f"microservice count(n) {{\n{LINEAR}\n}}"))
+    assert d.code == "W102" and d.fixes == []
+
+
+def test_driver_check_attaches_the_w102_fix():
+    _, _, found = driver.check(source("microservice f() {\n ship it 1\n}"), "test.btw")
+    [d] = [d for d in found if d.code == "W102"]
+    assert d.fixes == [Fix("Add SLA O(1)", [Edit(span(1, 16, 1, 16), " O(1)")])]
+
+
+def test_e417_fix():
+    [d] = check_bigo(program(f"microservice f(n) O(1) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
+    assert d.fixes == [Fix("Update SLA to O(n²)", [Edit(span(1, 18, 1, 22), "O(n²)")])]
+
+
+def test_e417_fix_uses_the_annotation_variable():
+    [d] = check_bigo(program(f"microservice f(m) O(m) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
+    assert d.fixes == [Fix("Update SLA to O(m²)", [Edit(span(1, 18, 1, 22), "O(m²)")])]
+
+
+def test_w417_fix():
+    [d] = check_bigo(program("microservice f(n) O(n^4) {\n ship it n\n}"))
+    assert d.fixes == [Fix("Tighten SLA", [Edit(span(1, 18, 1, 24), "O(1)")])]
+
+
+def test_w417_fix_uses_the_annotation_variable():
+    [d] = check_bigo(program(f"microservice f(m) O(m^3) {{\n {LOOP}\n}}"))
+    assert d.fixes == [Fix("Tighten SLA", [Edit(span(1, 18, 1, 24), "O(m)")])]
+
+
+@pytest.mark.parametrize(
+    "service, code",
+    [
+        (f"microservice count(n) {{\n{LINEAR}\n}}", "W102"),
+        (f"microservice count(n){{\n{LINEAR}\n}}", "W102"),
+        ("microservice f() {\n ship it 1\n}", "W102"),
+        ("microservice f(a, // TODO 🚀 later\n  b\n  ) {\n ship it a + b\n}", "W102"),
+        (f"microservice f(n) O(1) {{\n{LINEAR}\n}}", "E417"),
+        ("microservice f(n) O(n^4) {\n ship it n\n}", "W417"),
+        (f"microservice f(n) O(n^3) {{\n{LINEAR}\n}}", "W417"),
+    ],
+    ids=["w102_linear", "w102_no_space", "w102_constant", "w102_multiline", "e417", "w417_constant",
+         "w417_linear"],
+)
+def test_fix_round_trip(service, code):
+    src = source(service)
+    _, _, before = driver.check(src, "test.btw")
+    assert [d.code for d in before] == [code]
+    [fix] = before[0].fixes
+    _, _, after = driver.check(apply_fix(src, fix), "test.btw")
+    assert after == []

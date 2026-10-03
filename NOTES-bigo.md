@@ -1,17 +1,18 @@
 # Big O notes
 
 Files: `src/btw/bigo.py`, `tests/test_bigo.py`. Specs: Language Spec 9.1,
-Implementation Spec 8. The driver already calls `bigo.check_bigo(program)`
-after the checker, so no driver change was needed.
+Implementation Spec 8. The driver calls `bigo.check_bigo(program, tokens)`
+after the checker; the tokens are only for W102's quick fix.
 
 ## Interface
 
-| Function                        | Returns                                                                 |
-| ------------------------------- | ----------------------------------------------------------------------- |
-| `infer(program)`                | each microservice name mapped to an int degree, or `UNKNOWN`           |
-| `costs(program)`                | each name mapped to a `Cost`: `degree` plus `loop`, the deepest loop    |
-| `check_bigo(program)`           | E417, W417, W102, W508 and W203 diagnostics                             |
-| `format_complexity(degree, var)` | `O(1)`, `O(n)`, `O(n²)`, `O(n³)`, `O(n^4)`; `O(?)` for `UNKNOWN`         |
+| Function                           | Returns                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `infer(program)`                   | each microservice name mapped to an int degree, or `UNKNOWN`             |
+| `costs(program)`                   | each name mapped to a `Cost`: `degree` plus `loop`, the deepest loop     |
+| `check_bigo(program, tokens=None)` | E417, W417, W102, W508 and W203 diagnostics, with their quick fixes      |
+| `format_complexity(degree, var)`   | `O(1)`, `O(n)`, `O(n²)`, `O(n³)`, `O(n^4)`; `O(?)` for `UNKNOWN`         |
+| `params_close(tokens, ms)`         | the span of the `)` closing a microservice's parameters, or None         |
 
 - `UNKNOWN` is `None`, so a degree is `int | None`.
 - `Cost.loop` is the span of the `doomscroll` keyword of the innermost loop
@@ -60,11 +61,33 @@ cost the callee's degree, mutual recursion) in one implementation.
 8. **E417 related information (P2)** is already attached: the deepest loop
    with "nested doomscroll #d starts here", where d is the inferred degree.
 
-## Not done
+## Quick fixes (P2)
 
-- Quick fixes (P2): "Update SLA", "Add SLA", "Tighten SLA". W102's fix needs
-  the position after the closing parenthesis of the parameter list, which
-  the AST doesn't keep.
+Titles from the Quick fix column of Language Spec 11, each with one Edit:
+
+| Code | Title                 | Edit                                                           |
+| ---- | --------------------- | -------------------------------------------------------------- |
+| W102 | `Add SLA O(n)`        | insert ` O(n)`, leading space, right after the parameters' `)` |
+| E417 | `Update SLA to O(n²)` | replace the annotation with the inferred complexity            |
+| W417 | `Tighten SLA`         | replace the annotation with the inferred complexity            |
+
+- The complexity is `format_complexity` of the inferred degree. W102 uses
+  `n`; E417 and W417 use the annotation's variable, as their messages do.
+- **W102 needs the tokens.** The AST doesn't keep the `)` of the parameter
+  list, so the driver passes the token list and `params_close` finds it:
+  from the end of the last parameter (or just past the `(` when there are
+  none) it returns the first `)`, and gives up at the start of the body or
+  at a `(`, `{`, `}`, newline, `:wq` or the end of file. Giving up means the
+  `)` is missing, and the parser reports that (tests: `UNCLOSED`). The `(`
+  stop matters for `f(n O(n) {`, where the parser's recovery takes the
+  annotation's `)` as the end of the parameters. Without tokens
+  (`check_bigo(program)`), or without a `)`, W102 carries no fix.
+- **Superscripts.** Degrees 2 and 3 produce `O(n²)` and `O(n³)`, as the spec
+  says, but the lexer doesn't lex `²` and `³` yet (Language Spec 9.1 makes
+  them P2), so applying one of those fixes leaves text the lexer reports as
+  unexpected characters. They work once superscript lexing lands (lexer
+  card). `O(n^2)` would round-trip today, but the spec text wins until the
+  user says otherwise. The round-trip tests cover degrees 0 and 1 only.
 
 ## Other cards
 
