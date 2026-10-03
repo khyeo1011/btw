@@ -109,9 +109,9 @@ def cmd_asm(args: argparse.Namespace, source: str) -> int:
 
 def cmd_tokens(args: argparse.Namespace, source: str) -> int:
     tokens, _, diagnostics = driver.lex(source)
-    for token in tokens:
-        value = "" if token.value is None else f" {token.value!r}"
-        print(f"{format_span(token.span)} {token.kind.name} {token.text!r}{value}")
+    from btw.lexer import format_tokens  # driver.lex succeeded, so the lexer exists
+
+    sys.stdout.write(format_tokens(tokens))
     report(args, source, diagnostics, sys.stderr)
     return 0
 

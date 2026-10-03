@@ -1,5 +1,7 @@
 """Source positions (Implementation Spec 4.1)."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 

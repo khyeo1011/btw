@@ -82,7 +82,7 @@ uv run btw lsp                                 # language server, same as btw-ls
 
 ## Branches
 
-Each agent works on its own branch in its own worktree: `agent/lexer`
-(`../btw-lexer`), `agent/harness` (`../btw-harness`), `agent/editors`
-(`../btw-editors`). Bring in `main` with a merge, never a rebase, and don't
-commit to `main` directly.
+Work on a `feature/NAME` or `fix/NAME` branch (for example
+`feature/parser`, `fix/e408-span`) and open a pull request into `main`.
+Bring in `main` with a merge, never a rebase, and don't commit to `main`
+directly.
