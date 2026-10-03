@@ -151,6 +151,19 @@ uv run btw asm FILE.btw [--annotate]            # x86-64 assembly (--annotate: s
 uv run btw lsp                                  # language server (also btw-lsp)
 ```
 
+### From a release
+
+Each [GitHub release](https://github.com/khyeo1011/btw/releases) has a wheel
+that installs the `btw` and `btw-lsp` commands, C runtime included:
+
+```
+uv tool install ./btw-0.1.0-py3-none-any.whl    # or: pipx install ...
+btw run hello.btw
+```
+
+`btw build` still needs gcc on Linux x86-64. `RELEASING.md` describes how
+releases are made, and `CHANGELOG.md` what each one changed.
+
 ## Editor setup
 
 Both editors start the same server, `btw-lsp`, over stdio. It reports the same

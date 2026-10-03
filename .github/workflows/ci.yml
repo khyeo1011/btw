@@ -45,6 +45,29 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          python-version: "3.12"
+
+      # The wheel must carry runtime/btw_rt.c, or `btw build` fails once
+      # installed outside the repo.
+      - name: Build
+        run: uv build --no-sources
+
+      - name: Check distributions
+        run: scripts/check-dist.sh dist
+
   whitespace:
     name: whitespace
     runs-on: ubuntu-latest
