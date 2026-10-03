@@ -57,6 +57,8 @@ KEYWORDS: dict[K, str] = {
     K.NOT_FOUND: "**false.** Truth not found. Also the one number you can't type.",
 }
 
+NO_SLA = "I had to read your code to find out it's {}. Write an SLA."
+
 WOMM = (
     "**Suppression.** Silences soft errors on the next statement "
     "and ships the bug to everyone else."
@@ -183,7 +185,8 @@ def microservice_hover(program: ast.Program, ms: ast.Microservice) -> str:
     header = f"`microservice {ms.name.name}({params})`"
     d = inferred(program, ms)
     if ms.big_o is None:
-        return f"{header} · no SLA · inferred {bigo.format_complexity(d)}"
+        found = bigo.format_complexity(d)
+        return f"{header} · no SLA · {NO_SLA.format(found)}"
     k, var = ms.big_o.degree, ms.big_o.var
     found = bigo.format_complexity(d, var)
     if k is None:
@@ -195,7 +198,8 @@ def microservice_hover(program: ast.Program, ms: ast.Microservice) -> str:
 
 
 def annotation_verdict(program: ast.Program, ms: ast.Microservice) -> str:
-    """✓ verified, ✗ actually O(n²), or O(?) for recursion."""
+    """Correct, wrong (an under- or over-claim), O(?) for recursion, or
+    unverifiable. Neither of the last two is checked."""
     assert ms.big_o is not None
     k, var = ms.big_o.degree, ms.big_o.var
     d = inferred(program, ms)
@@ -204,5 +208,5 @@ def annotation_verdict(program: ast.Program, ms: ast.Microservice) -> str:
     if k is None:
         return f"can't verify O({ms.big_o.text}). Inferred: {bigo.format_complexity(d, var)}."
     if k == d:
-        return "✓ verified."
-    return f"✗ actually {bigo.format_complexity(d, var)}."
+        return "Correct! Are you an arch user as well?"
+    return "Go take a DSA course again."

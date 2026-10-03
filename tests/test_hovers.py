@@ -83,14 +83,37 @@ def test_microservice_verdicts():
     assert text_at(23, "total") == text_at(6, "total")
     assert text_at(11, "square") == "`microservice square(n)` · SLA O(n) · inferred O(n²) ✗"
     assert text_at(18, "slow") == "`microservice slow(n)` · SLA O(n²) · inferred O(1) ✗"
-    assert text_at(19, "loop") == "`microservice loop(n)` · no SLA · inferred O(?)"
+    assert text_at(19, "loop") == (
+        "`microservice loop(n)` · no SLA · I had to read your code to find out it's O(?). "
+        "Write an SLA."
+    )
     assert text_at(20, "fuzzy") == "`microservice fuzzy(n)` · SLA O(log n) · inferred O(1)"
+
+
+def test_microservice_without_sla_gets_taunted():
+    source = """\
+i use arch btw
+microservice count(n) {
+    npm install i = 0
+    doomscroll i < n { git push --force i = i + 1 }
+    ship it i
+}
+serve localhost:3000 {
+    console.log count(3)
+}
+:wq
+"""
+    assert text_at(2, "count", source=source) == (
+        "`microservice count(n)` · no SLA · I had to read your code to find out it's O(n). "
+        "Write an SLA."
+    )
 
 
 def test_big_o_annotation():
     prefix = "**SLA.** Checked by counting nested doomscrolls. Verdict: "
-    assert text_at(6, "O(n)") == prefix + "✓ verified."
-    assert text_at(11, "O(n)", 2) == prefix + "✗ actually O(n²)."
+    assert text_at(6, "O(n)") == prefix + "Correct! Are you an arch user as well?"
+    assert text_at(11, "O(n)", 2) == prefix + "Go take a DSA course again."  # under-claim
+    assert text_at(18, "O(n^2)") == prefix + "Go take a DSA course again."  # over-claim
     assert text_at(20, "O(log") == prefix + "can't verify O(log n). Inferred: O(1)."
 
 

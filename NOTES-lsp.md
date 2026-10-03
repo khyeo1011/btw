@@ -61,25 +61,28 @@ tests/test_hovers.py  hover text, one test per row kind of Language Spec 12
 
 ## Spec questions
 
-The hover rows below leave some cases open. The tests pin these choices; say
-the word and they change.
+The hover rows below left some cases open. Entries marked **Resolved** were
+settled by the project owner, and Language Spec 12 now says the same.
 
-1. **Microservice name without an annotation.** The row assumes there is an
-   SLA. Chosen: `` `microservice f(n)` · no SLA · inferred O(n) `` (W102 also
-   says "has no SLA").
-2. **Microservice with an unverifiable annotation.** Chosen: no mark, since
-   W203 says it can't verify: `` · SLA O(log n) · inferred O(1) ``.
-3. **Recursive microservice.** "or O(?) when recursive" is read as the
-   inferred part becoming `O(?)` with no mark: `` · SLA O(n) · inferred O(?) ``.
-4. **Big O annotation hover.** "Verdict: ✓ verified, ✗ actually O(n²), or
-   O(?) for recursion" is read as one of three endings: `Verdict: ✓ verified.`,
-   `Verdict: ✗ actually O(n²).` (over-claims too: `✗ actually O(1).`) and
-   `Verdict: O(?).` An unverifiable annotation isn't covered; chosen:
-   `Verdict: can't verify O(log n). Inferred: O(1).`
+1. **Microservice name without an annotation.** **Resolved:** taunt the user
+   for making the compiler analyze the code, and tell them to write an SLA:
+   `` `microservice f(n)` · no SLA · I had to read your code to find out it's
+   O(n). Write an SLA. `` A recursive one ends in `O(?)` the same way.
+2. **Microservice with an unverifiable annotation.** **Resolved:** not
+   checked, so no mark: `` · SLA O(log n) · inferred O(n) ``. The inferred
+   value is an upper bound, so a binary search over n items is technically
+   O(n) as well.
+3. **Recursive microservice.** **Resolved:** recursive microservices aren't
+   checked, so no mark: `` · SLA O(n) · inferred O(?) ``.
+4. **Big O annotation hover.** **Resolved:** a correct SLA ends
+   `Verdict: Correct! Are you an arch user as well?` and a wrong one (an
+   under-claim or an over-claim) `Verdict: Go take a DSA course again.`
+   Neither recursive nor unverifiable SLAs are checked, so they keep
+   `Verdict: O(?).` and `Verdict: can't verify O(log n). Inferred: O(1).`
 
 ## Verification
 
-`uv run pytest` passes: 879 passed, 39 xfailed (the xfails are the native
+`uv run pytest` passes: 880 passed, 39 xfailed (the xfails are the native
 step and the WAITING goldens, as before). `tests/test_lsp.py` starts the
 server as a subprocess, sends initialize, initialized and didOpen with the
 E426 golden, and checks the one published diagnostic (severity 1, code

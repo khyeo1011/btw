@@ -484,11 +484,14 @@ Diagnostics are sorted by line, then column, then code, and exact duplicates (sa
 | `404`                    | **false.** Truth not found. Also the one number you can't type.                                                |
 | a TODO comment           | **Comment.** The only kind allowed. Technical debt: 3/5 TODOs used.                                            |
 | `// works on my machine` | **Suppression.** Silences soft errors on the next statement and ships the bug to everyone else.                |
-| a Big O annotation       | **SLA.** Checked by counting nested doomscrolls. Verdict: ✓ verified, ✗ actually O(n²), or O(?) for recursion. |
+| a Big O annotation       | **SLA.** Checked by counting nested doomscrolls. Verdict: Correct! Are you an arch user as well? (when k = d) / Verdict: Go take a DSA course again. (when k ≠ d, either way) / Verdict: O(?). (recursive) / Verdict: can't verify O(log n). Inferred: O(n). (unverifiable) |
 | a variable               | `npm install x` · number · declared on line 4 (P2 adds: 3 commits)                                             |
 | a constant               | `npm install -g LIMIT` · number · global install, modifying it needs `sudo`                                    |
 | a parameter              | parameter `n` of `total` · number                                                                              |
 | a microservice name      | `microservice total(n)` · SLA O(n) · inferred O(n) ✓ (or ✗ with the inferred value, or O(?) when recursive)    |
+| a microservice, no SLA   | `microservice total(n)` · no SLA · I had to read your code to find out it's O(n). Write an SLA.                |
+
+Recursive microservices and unverifiable annotations (W203) aren't checked, so their hovers get no ✓ or ✗: `microservice search(n)` · SLA O(log n) · inferred O(n). The inferred value is still an upper bound, so a binary search with a doomscroll is technically O(n) as well.
 
 # 13. Roast backlog (P2, only if you're ahead)
 
