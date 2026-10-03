@@ -6,18 +6,23 @@ golden test format. Language behavior still comes from `docs/SPEC.md`.
 ## CLI
 
 ```
-btw check  FILE [--format short|pretty]   diagnostics to stdout
-btw run    FILE [--format short|pretty]   interpret; diagnostics to stderr
-btw build  FILE [-o OUT] [--format ...]   native binary (default OUT: FILE without .btw)
-btw asm    FILE [-o OUT]                  assembly to stdout, or to OUT
-btw tokens FILE                           one token per line
-btw parse  FILE                           the AST
-btw lsp                                   language server on stdio
+btw check  FILE      diagnostics to stdout
+btw run    FILE      interpret; diagnostics to stderr, only when errors block the run
+btw build  FILE [-o OUT]   native binary (default OUT: FILE without .btw); diagnostics to stderr
+btw asm    FILE [-o OUT]   assembly to stdout, or to OUT; diagnostics to stderr
+btw tokens FILE      one token per line (`str(token)`); diagnostics to stderr
+btw parse  FILE      the AST (`str(program)`); diagnostics to stderr
+btw lsp              language server on stdio
 ```
 
-`--format` defaults to `pretty` when the output stream is a terminal and to
-`short` otherwise. Colors are used only in pretty mode, only on a terminal and
-only when `NO_COLOR` is unset.
+Every command that takes a FILE also takes `--format short|pretty`, which
+defaults to `pretty` when the diagnostics stream is a terminal and to `short`
+otherwise. Colors are used only in pretty mode, only on a terminal and only
+when `NO_COLOR` is unset (set to anything, even empty, turns them off).
+
+`btw run` stays silent about warnings when the program runs, so a program's
+stderr is exactly its runtime output. The source is read as UTF-8 and a
+leading byte-order mark is dropped before lexing.
 
 Exit codes:
 
@@ -43,6 +48,56 @@ LINE and COL are 1-based and refer to the start of the span. SEVERITY is
 tests/golden/p0_e404_undeclared_var.btw:3:17: error E404: Error 404: variable `x` not found. Did you forget to `npm install` it?
 ```
 
+## Pretty diagnostic format
+
+One block per diagnostic, blocks separated by a blank line. W is the number of
+digits in the 1-based line number:
+
+```
+error[E403]: Permission denied. Are you root?
+ --> demo.btw:4:5
+  |
+4 |     git push --force LIMIT = 11
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+  = help: try `sudo git push --force LIMIT = ...`
+```
+
+1. `SEVERITY[CODE]: MESSAGE`, with SEVERITY as in the short format.
+2. W spaces, then `--> PATH:LINE:COL`.
+3. W spaces, then ` |`.
+4. The line number, ` | ` and the source line without its line ending. An
+   empty source line (or a line past the end of the file) prints as `N |`.
+5. W spaces, ` | `, padding up to the start column, then the carets. The
+   padding copies each tab before the column and turns every other character
+   into a space, so carets line up in a terminal. A span that ends on the same
+   line gets one caret per column it covers; a span that continues onto later
+   lines gets carets to the end of the line. Always at least one caret, and a
+   column past the end of the line pads with spaces.
+6. Only with a help text: W spaces, then ` = help: HELP`.
+
+No line has trailing whitespace. With colors on, `SEVERITY[CODE]` and the
+carets are bold red (errors) or bold yellow (warnings), the message is bold,
+and `-->`, the line number and the `|` gutter are bold blue. Removing the
+escape codes gives exactly the uncolored output.
+
+## Component interfaces
+
+`src/btw/driver.py` expects these. A component that differs should update the
+driver in the same change.
+
+| Module            | Function                                      | Returns                           |
+| ----------------- | --------------------------------------------- | --------------------------------- |
+| `btw.lexer`       | `lex(source)`                                 | `(tokens, comments, diagnostics)` |
+| `btw.parser`      | `parse(tokens)`                               | `(program, diagnostics)`          |
+| `btw.checker`     | `check(program, comments, source)`            | `(symbols, diagnostics)`          |
+| `btw.interpreter` | `run(program, symbols, stdout, stderr)`       | the exit code                     |
+| `btw.codegen`     | `generate(program, symbols)`                  | `(assembly_text, diagnostics)`    |
+| `btw.lsp`         | `serve()`                                     | nothing; serves stdio until exit  |
+
+`btw build` links the assembly with `src/btw/runtime.c` using `gcc`. Diagnostics
+are `btw.diagnostics.Diagnostic` objects; the driver sorts and deduplicates
+them. The interpreter writes runtime errors to stderr itself (Language Spec 10).
+
 ## Golden test format
 
 Every `tests/golden/NAME.btw` can have these sidecar files:
@@ -67,7 +122,13 @@ Runner steps, per program:
 3. Run `btw run NAME.btw`. Compare stdout with `.out`, stderr with `.err` and
    the exit code with `.exit`.
 4. If `gcc` is available, `btw build` the program, run the binary and make the
-   same three comparisons. Skipped while the native backend isn't implemented.
+   same three comparisons. Skipped while the native backend isn't implemented,
+   and for programs the native backend rejects with E501.
+
+Exit code 2 from `btw` in steps 1 and 3 fails the test with btw's stderr, so
+until the components exist every golden test fails with "not implemented yet".
+`--tier N` keeps tiers 0 to N. `--bless` rewrites the sidecars from actual
+output (steps 1 and 3 only); it is for humans, never for agents.
 
 The tier is the number in the file name prefix (`p0_`, `p1_`, `p2_`).
 

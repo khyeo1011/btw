@@ -1,2 +1,4 @@
 def main() -> None:
-    print("Hello from btw!")
+    from btw.cli import main
+
+    raise SystemExit(main())
