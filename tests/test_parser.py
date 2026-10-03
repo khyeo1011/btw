@@ -703,8 +703,33 @@ def test_serve_without_port():
 
 
 def test_other_port_is_accepted():
+    program, _, diags = parse_src("i use arch btw\nserve localhost:5000 { }\n:wq\n")
+    assert diags == [] and program.items[0].port == 5000
+
+
+def test_port_8080_is_roasted():
     program, _, diags = parse_src("i use arch btw\nserve localhost:8080 { }\n:wq\n")
-    assert diags == [] and program.items[0].port == 8080
+    (d,) = diags
+    assert (d.code, d.severity, d.span) == ("E409", Severity.ERROR, sp(2, 7, 2, 21))
+    assert d.message == (
+        "Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000."
+    )
+    assert program.items[0].port == 8080
+
+
+@pytest.mark.parametrize(
+    "body, message",
+    [
+        ("console.log 1 === 1", "This isn't JavaScript. Use `==`."),
+        ("console.log x;", "Semicolons are deprecated. This is a modern language."),
+        ("i++", "We don't do that here. Use `git push --force i = i + 1`."),
+        ("npm install x = 007", "Leading zeros? This isn't octal, James Bond."),
+    ],
+)
+def test_roasts_are_the_only_e400(body, message):
+    _, lex_diags, diags = parse_src(wrap(body))
+    assert [(d.code, d.message) for d in lex_diags] == [("E400", message)]
+    assert diags == []
 
 
 # Top level

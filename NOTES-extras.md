@@ -40,3 +40,77 @@ Files: `src/btw/parser.py`, `tests/test_parser.py`; the `WAITING` entries in
   position, and a desugared Call has its stage's span (Language Spec 9.4),
   which doesn't cover its first argument. Fix in `hovers.py`: don't prune at
   a Call (or check `args` regardless of the Call's span).
+
+## 2. Works on my machine (Language Spec 9.5)
+
+Already done before this card: `src/btw/suppress.py` (PR #9, see
+NOTES-suppress) applies 9.5 to the full diagnostic list (lexer, parser,
+checker, Big O), and `driver.check` calls `suppress.apply(program,
+diagnostics)` just before the final sort. I checked it against 9.5 line by
+line: it targets the first statement or item that starts after the
+directive, removes the soft diagnostics that start inside it (never E429),
+and leaves exactly one W200 or W304 on the directive. The runtime half
+(a suppressed E403 assignment really assigns) works because suppression
+never changes the AST. No code change; the four goldens
+(`p2_w200_two_problems`, `p2_w200_works_on_my_machine`,
+`p2_w304_hard_error_only`, `p2_w304_nothing_to_suppress`) pass. A
+pipeline statement is an ordinary target.
+
+## 3. Git history (Language Spec 9.3)
+
+Also already done before this card, by the interpreter and checker cards
+(NOTES-interp, NOTES-checker pass 5):
+
+- `interp.py`: history only for symbols the checker marks `tracked`; a
+  declaration starts a fresh list, each push and revert appends and keeps
+  the 16 newest; `git revert` with fewer than 2 commits is `fatal: bad
+  revision 'x~1'` with exit 128; `git log` prints newest first with
+  `(HEAD -> x)`, booleans as `LGTM`/`404`.
+- `checker.py`: E403 (soft, with the `sudo git revert X` help) on a revert of
+  a constant without sudo, W100 on sudo for a variable, and E405 "History
+  only works on globals and variables in `serve`. ..." on the whole
+  statement when the target is a microservice parameter or local.
+
+No code change. The goldens pass in interpreter mode (and natively):
+`p2_git_history`, `p2_git_log_fresh_history`, `p2_git_log_limit`,
+`p2_git_revert_constant`, `p2_runtime_revert_one_commit`,
+`p2_e403_revert_constant`, `p2_e405_history_on_local`.
+
+## 4. Roast backlog (Language Spec 13)
+
+Files: `src/btw/lexer.py`, `src/btw/parser.py`, `tests/test_lexer.py`,
+`tests/test_parser.py`.
+
+| Input                  | Where  | Status                                                    |
+| ---------------------- | ------ | --------------------------------------------------------- |
+| `===`                  | lexer  | new: ERROR token + E400                                   |
+| `;`                    | lexer  | new: ERROR token + E400 (was "Unexpected character `;`.") |
+| `++`                   | lexer  | new: ERROR token + E400                                   |
+| `007`                  | lexer  | already done (NOTES-lexer decision 2)                     |
+| chained comparison     | parser | already done (NOTES-parser decision 3)                    |
+| `serve localhost:8080` | parser | new: E409 on the `localhost:8080` token                   |
+| CLI summary line       | CLI    | not done: belongs to `cli.py`, outside this item's scope  |
+
+- The three roast tokens are tried before the operators, so `===` is one
+  token rather than `==` then `=`. None of `===`, `++` or `;` can start a
+  valid token sequence, so no program that used to be valid changes
+  meaning. Being ERROR tokens, the parser counts them as the statement's
+  E400 and doesn't report again (NOTES-lexer "Token details").
+- `test_other_port_is_accepted` now uses port 5000, since 8080 is roasted.
+
+### Questions
+
+1. **Ports other than 3000 and 8080.** Language Spec 4 says "A port other
+   than 3000: Accepted in P0. P2 roast in section 13", but section 13's
+   message names 8080 and Spring Boot (8080 is Spring Boot's default).
+   Should `serve localhost:5000` get the same E409 with its own number
+   ("port 5000 is already in use by a Spring Boot app ...")? For now only
+   8080 is roasted and every other port is accepted, as in P0.
+2. **`++` message.** The spec text says `git push --force i = i + 1`
+   whatever the variable is. Kept verbatim (messages must match the spec
+   character for character); `count++` still suggests `i`. Should the
+   message name the variable in front of `++` when there is one?
+3. **Cascade on `i++`.** The parser keeps the expression statement `i`, so
+   `i++` also gets W204 "This expression does nothing." on `i`. Dropping
+   broken expression statements would also hide a real E404 on `j++` for an
+   undeclared `j`, so it stays. The same already happens for `x @`.

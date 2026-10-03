@@ -87,6 +87,9 @@ E408 = "Error: program never exited. Classic Vim user."
 W208 = "208 Already Reported: we know you use Arch."
 UNCLOSED_PAREN_JOKE = "Even Lisp programmers close their parentheses."
 E500 = "It works on my machine. Unfortunately, this is not my machine."
+SPRING_BOOT = (
+    "Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000."
+)
 VOID_PIPE = "`console.log` returns nothing. It's void, like my weekend plans."
 
 
@@ -382,8 +385,10 @@ class _Parser:
         kw = self.advance()
         port = 3000
         if self.at(K.LOCALHOST):
-            value = self.advance().value
-            port = value if isinstance(value, int) else 3000
+            tok = self.advance()
+            port = tok.value if isinstance(tok.value, int) else 3000
+            if port == 8080:  # the Language Spec 13 roast; other ports are accepted
+                self.diags.append(Diagnostic("E409", Severity.ERROR, SPRING_BOOT, tok.span))
         else:
             self.unexpected("`localhost:3000`")
         body = self.expect_block()

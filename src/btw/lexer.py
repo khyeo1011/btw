@@ -65,6 +65,15 @@ OPERATORS: list[tuple[str, K]] = [
 
 ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\"}
 
+# Roast tokens (Language Spec 13): habits from other languages. Each becomes
+# one ERROR token with its E400, tried before the operators so `===` isn't
+# `==` then `=`. None of them can start a valid token sequence.
+ROASTS: list[tuple[str, str]] = [
+    ("===", "This isn't JavaScript. Use `==`."),
+    ("++", "We don't do that here. Use `git push --force i = i + 1`."),
+    (";", "Semicolons are deprecated. This is a modern language."),
+]
+
 
 def is_ident_start(c: str) -> bool:
     return c == "_" or ("a" <= c <= "z") or ("A" <= c <= "Z")
@@ -226,6 +235,12 @@ class _Lexer:
                 end += 1
             self.emit(WORDS.get(src[i:end], K.IDENT), end)
             return
+
+        for text, message in ROASTS:
+            if src.startswith(text, i):
+                tok = self.emit(K.ERROR, i + len(text))
+                self.error(message, tok.span)
+                return
 
         for op, kind in OPERATORS:
             if src.startswith(op, i):

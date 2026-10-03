@@ -184,7 +184,8 @@ def test_wq():
         (">", [K.GT]),
         ("==", [K.EQ_EQ]),
         ("=", [K.EQ]),
-        ("===", [K.EQ_EQ, K.EQ]),
+        ("== =", [K.EQ_EQ, K.EQ]),
+        ("+ +", [K.PLUS, K.PLUS]),
         ("!=", [K.BANG_EQ]),
         ("!", [K.BANG]),
         ("!x", [K.BANG, K.IDENT]),
@@ -198,13 +199,46 @@ def test_operators(src, expected):
     assert kinds(src) == expected
 
 
-@pytest.mark.parametrize("c", ["@", "&", ";", ".", "é"])
+@pytest.mark.parametrize("c", ["@", "&", ".", "é"])
 def test_unexpected_character(c):
     tokens, _, diags = lex(f"x {c} y")
     assert [t.kind for t in tokens[:-1]] == [K.IDENT, K.ERROR, K.IDENT]
     assert [d.code for d in diags] == ["E400"]
     assert diags[0].message == f"Unexpected character `{c}`."
     assert diags[0].span == Span(Pos(0, 2), Pos(0, 3))
+
+
+
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        ("===", "This isn't JavaScript. Use `==`."),
+        ("++", "We don't do that here. Use `git push --force i = i + 1`."),
+        (";", "Semicolons are deprecated. This is a modern language."),
+    ],
+)
+def test_roast_tokens(text, message):
+    tokens, _, diags = lex(f"x {text} y")
+    assert [t.kind for t in tokens[:-1]] == [K.IDENT, K.ERROR, K.IDENT]
+    assert tokens[1].text == text
+    assert [(d.code, d.message) for d in diags] == [("E400", message)]
+    assert diags[0].span == Span(Pos(0, 2), Pos(0, 2 + len(text)))
+
+
+@pytest.mark.parametrize(
+    "src, expected",
+    [
+        ("i++", [K.IDENT, K.ERROR]),
+        ("a====b", [K.IDENT, K.ERROR, K.EQ, K.IDENT]),
+        ("+++", [K.ERROR, K.PLUS]),
+        ("x;;", [K.IDENT, K.ERROR, K.ERROR]),
+        ("a !== b", [K.IDENT, K.BANG_EQ, K.EQ, K.IDENT]),
+        ('";"', [K.STRING]),
+        ("// ;", []),
+    ],
+)
+def test_roast_tokens_in_context(src, expected):
+    assert kinds(src) == expected
 
 
 # Comments
