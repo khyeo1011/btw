@@ -47,28 +47,39 @@ def e501s(source: str) -> list[tuple[str, Span]]:
     return [(d.message, d.span) for d in diagnostics if d.code == "E501"]
 
 
-def test_git_revert_and_git_log_are_e501():
-    source = program(
-        "    npm install x = 1",
-        "    git push --force x = 2",
-        "    git revert x",
-        "    sudo git revert x",
-        "    git log x",
+def too_many_histories() -> str:
+    """65 tracked variables: one more than the runtime's history table."""
+    return program(
+        *[f"    npm install v{k} = {k}" for k in range(65)],
+        *[f"    git log v{k}" for k in range(65)],
+        "    git revert v64",
+        "    git log v0",
     )
+
+
+def test_history_past_64_variables_is_e501():
     revert = "Not implemented: `git revert` in native builds. Try `btw run`."
     log = "Not implemented: `git log` in native builds. Try `btw run`."
-    assert e501s(source) == [
-        (revert, Span(Pos(4, 4), Pos(4, 16))),
-        (revert, Span(Pos(5, 4), Pos(5, 21))),
-        (log, Span(Pos(6, 4), Pos(6, 13))),
+    assert e501s(too_many_histories()) == [
+        (log, Span(Pos(131, 4), Pos(131, 15))),
+        (revert, Span(Pos(132, 4), Pos(132, 18))),
     ]
+
+
+def test_history_up_to_64_variables_builds():
+    source = program(
+        *[f"    npm install v{k} = {k}" for k in range(64)],
+        *[f"    git log v{k}" for k in range(64)],
+    )
+    _, text = asm(source)
+    assert "        mov     rdi, 63\n" in text and "rdi, 64" not in text
 
 
 def test_e501_is_build_exit_1_without_running_gcc(tmp_path, capsys):
     from btw import cli
 
     path = tmp_path / "prog.btw"
-    path.write_text(program("    npm install x = 1", "    git log x"))
+    path.write_text(too_many_histories())
     assert cli.main(["build", "--format", "short", str(path)]) == 1
     assert "error[E501]: Not implemented: `git log`" in capsys.readouterr().err
     assert not (tmp_path / "prog").exists()
@@ -234,6 +245,35 @@ def test_annotate_microservice_header():
     _, text = asm(source, annotate=True)
     assert "\n\n        # line 2: microservice f(n) O(1)\nbtw_fn_f:\n" in text
     assert "\n\n\n" not in text
+
+
+def test_history_calls():
+    source = program(
+        "    npm install x = 1",
+        "    npm install untracked = 2",
+        "    git push --force x = untracked",
+        "    git push --force untracked = 3",
+        "    git revert x",
+        "    git log x",
+        top=("npm install -g ON = LGTM", "microservice f() O(1) {", "    ship it 1", "}"),
+    ).replace("    git log x\n", "    git log x\n    sudo git push --force ON = 404\n    git log ON\n")
+    _, text = asm(source)
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    assert lines.count("call btw_rt_hist_reset") == 2  # x and the constant ON
+    assert lines.count("call btw_rt_hist_commit") == 2  # x and ON, not untracked
+    start = lines.index("call btw_rt_hist_revert") - 2
+    assert lines[start : start + 4] == [
+        "mov rdi, 1",
+        "lea rsi, [rip + .Lstr0]",
+        "call btw_rt_hist_revert",
+        "mov qword ptr [rbp - 8], rax",
+    ]
+    logs = [k for k, line in enumerate(lines) if line == "call btw_rt_hist_log"]
+    assert [lines[k - 3 : k] for k in logs] == [
+        ["mov rdi, 1", "lea rsi, [rip + .Lstr0]", "mov rdx, 0"],
+        ["mov rdi, 0", "lea rsi, [rip + .Lstr1]", "mov rdx, 1"],
+    ]
+    assert '.Lstr0: .string "x"\n' in text and '.Lstr1: .string "ON"\n' in text
 
 
 # The push-depth invariant
@@ -412,6 +452,46 @@ DIFFERENTIAL = {
         "}",
         body=("    console.log 1", "    console.log 5 + down(0)"),
     ),
+    "history_from_microservices": microservices(
+        "npm install total = 0",
+        "npm install -g FLAG = LGTM",
+        "microservice add(n) O(1) {",
+        "    git push --force total = total + n",
+        "    sudo git push --force FLAG = !FLAG",
+        "    ship it total",
+        "}",
+        body=(
+            "    console.log add(add(1) + add(2))",
+            "    git revert total",
+            "    sudo git revert FLAG",
+            "    git log total",
+            "    git log FLAG",
+            "    npm install i = 0",
+            "    doomscroll i < 3 {",
+            "        npm install seen = i * 10",
+            "        git push --force seen = add(seen)",
+            "        git log seen",
+            "        git push --force i = i + 1",
+            "    }",
+            "    git log i",
+            "    ship it total",
+        ),
+    ),
+    "history_cap_and_toggle": program(
+        "    npm install n = 0",
+        "    doomscroll n < 40 { git push --force n = n + 1 }",
+        "    git revert n",
+        "    git revert n",
+        "    git revert n",
+        "    git log n",
+        "    npm install b = 404",
+        "    git push --force b = 1 == 1",
+        "    git revert b",
+        "    console.log b",
+        "    git log b",
+        "    npm install once = 1",
+        "    git revert once",
+    ),
     "division_by_zero_in_a_call": microservices(
         "microservice div(a, b) O(1) {",
         "    ship it a / b",
@@ -439,12 +519,20 @@ ALIGNMENT_PROBE = r"""
 #define btw_rt_print_str real_print_str
 #define btw_rt_div_zero real_div_zero
 #define btw_rt_stack_overflow real_stack_overflow
+#define btw_rt_hist_reset real_hist_reset
+#define btw_rt_hist_commit real_hist_commit
+#define btw_rt_hist_revert real_hist_revert
+#define btw_rt_hist_log real_hist_log
 #include "RUNTIME"
 #undef btw_rt_print_int
 #undef btw_rt_print_bool
 #undef btw_rt_print_str
 #undef btw_rt_div_zero
 #undef btw_rt_stack_overflow
+#undef btw_rt_hist_reset
+#undef btw_rt_hist_commit
+#undef btw_rt_hist_revert
+#undef btw_rt_hist_log
 
 /* At -O0 with a frame pointer, rbp is 16-byte aligned exactly when the
  * caller's rsp was aligned at the call. */
@@ -456,6 +544,12 @@ void btw_rt_print_bool(long v) { CHECK; real_print_bool(v); }
 void btw_rt_print_str(const char *s) { CHECK; real_print_str(s); }
 void btw_rt_div_zero(void) { CHECK; real_div_zero(); }
 void btw_rt_stack_overflow(void) { CHECK; real_stack_overflow(); }
+void btw_rt_hist_reset(long id, long v) { CHECK; real_hist_reset(id, v); }
+void btw_rt_hist_commit(long id, long v) { CHECK; real_hist_commit(id, v); }
+long btw_rt_hist_revert(long id, const char *name) { CHECK; return real_hist_revert(id, name); }
+void btw_rt_hist_log(long id, const char *name, long is_bool) {
+    CHECK; real_hist_log(id, name, is_bool);
+}
 """
 
 
@@ -476,7 +570,7 @@ ALIGNMENT_PROGRAMS = {
     **{
         f"golden_{path.stem}": path.read_text()
         for path in sorted(GOLDEN.glob("*.btw"))
-        if path.with_suffix(".out").exists() and "microservice" in path.read_text()
+        if any(path.with_suffix(suffix).exists() for suffix in (".out", ".err", ".exit"))
     },
 }
 

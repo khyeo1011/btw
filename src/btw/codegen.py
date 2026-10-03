@@ -11,8 +11,9 @@ uses the count to align `rsp` to 16 bytes before every call.
 
 Part 1 covered globals, constants, `serve`, every expression and the
 statements that don't need microservices or history. Part 2 adds
-microservices, calls and the call depth limit. Anything else is E501, reported before any assembly
-is written.
+microservices, calls, the call depth limit and git history. The one thing
+left is E501, reported before any assembly is written: history for more than
+64 variables.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from btw.span import Pos, Span
 INDENT = " " * 8
 SERVE = "serve"
 MAX_DEPTH = 1_000  # Language Spec 8: the 1,001st nested call overflows
+MAX_TRACKED = 64  # Implementation Spec 10.7: the runtime's history table
 ARG_REGISTERS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
 
 ARITHMETIC = {"+": "add", "-": "sub", "*": "imul"}
@@ -48,9 +50,20 @@ def keyword_span(start: Pos, keyword: str) -> Span:
 # E501: what the native backend can't build yet
 
 
-def unsupported(program: ast.Program) -> list[Diagnostic]:
-    """One E501 per `git revert` and `git log`."""
+def tracked_ids(symbols: Symbols) -> dict[Symbol, int]:
+    """The runtime's history id of every tracked variable, in the order the
+    checker created them."""
+    tracked = [sym for sym in symbols.all if sym.tracked]
+    return {sym: k for k, sym in enumerate(tracked)}
+
+
+def unsupported(program: ast.Program, ids: dict[Symbol, int]) -> list[Diagnostic]:
+    """One E501 per `git revert` and `git log` on a variable past the
+    runtime's 64 histories (Implementation Spec 10.7)."""
     found: list[Diagnostic] = []
+
+    def too_many(target: ast.Var) -> bool:
+        return ids.get(target.sym, 0) >= MAX_TRACKED
 
     def block(b: ast.Block) -> None:
         for s in b.stmts:
@@ -66,9 +79,9 @@ def unsupported(program: ast.Program) -> list[Diagnostic]:
                     stmt(else_)
             case ast.While(body=body):
                 block(body)
-            case ast.Revert():
+            case ast.Revert(name=target) if too_many(target):
                 found.append(e501("git revert", s.span))
-            case ast.Log():
+            case ast.Log(name=target) if too_many(target):
                 found.append(e501("git log", s.span))
 
     for item in program.items:
@@ -123,10 +136,16 @@ def utf16_index(line: str, col: int) -> int:
 
 class Codegen:
     def __init__(
-        self, program: ast.Program, symbols: Symbols, annotate: bool, source: str | None
+        self,
+        program: ast.Program,
+        symbols: Symbols,
+        ids: dict[Symbol, int],
+        annotate: bool,
+        source: str | None,
     ) -> None:
         self.program = program
         self.symbols = symbols
+        self.ids = ids  # history ids of the tracked variables
         self.annotate = annotate
         self.source_lines = source.split("\n") if source is not None else None
         self.text: list[str] = []
@@ -270,7 +289,7 @@ class Codegen:
         self.prologue("main", SERVE)
         for item in globals_:
             self.comment(item.span.start, item.span.end)
-            self.store(item.name.sym, item.value)
+            self.store(item.name.sym, item.value, "btw_rt_hist_reset")
         self.comment(serve.span.start, serve.body.span.start)
         self.block(serve.body)
         self.epilogue("falling off the end of serve exits with 0")
@@ -340,9 +359,17 @@ class Codegen:
     def simple(self, stmt: ast.Stmt) -> None:
         match stmt:
             case ast.VarDecl(name=name, value=value):
-                self.store(name.sym, value)
+                self.store(name.sym, value, "btw_rt_hist_reset")
             case ast.Assign(name=target, value=value):
-                self.store(target.sym, value)
+                self.store(target.sym, value, "btw_rt_hist_commit")
+            case ast.Revert(name=target):
+                self.history_target(target.sym)
+                self.call("btw_rt_hist_revert")
+                self.emit("mov", f"{self.location(target.sym)}, rax", target.name)
+            case ast.Log(name=target):
+                self.history_target(target.sym)
+                self.emit("mov", f"rdx, {int(target.sym.ty is Type.BOOLEAN)}", "print as LGTM/404?")
+                self.call("btw_rt_hist_log")
             case ast.Break():
                 self.emit("jmp", self.loop_ends[-1], "touch grass")
             case ast.Return(value=None):
@@ -372,10 +399,24 @@ class Codegen:
             case _:
                 raise AssertionError(f"unexpected statement {stmt!r}")
 
-    def store(self, sym: Symbol, value: ast.Expr) -> None:
+    def store(self, sym: Symbol, value: ast.Expr, history: str) -> None:
+        """Evaluate into a variable. A tracked one (Language Spec 9.3) also
+        tells the runtime: `btw_rt_hist_reset` for a declaration, so one that
+        runs again starts a fresh history, `btw_rt_hist_commit` for an
+        assignment, wherever it is."""
         self.expr(value)
         self.pop("rax")
         self.emit("mov", f"{self.location(sym)}, rax", sym.name)
+        if sym in self.ids:
+            self.emit("mov", f"rdi, {self.ids[sym]}", f"history of {sym.name}")
+            self.emit("mov", "rsi, rax")
+            self.call(history)
+
+    def history_target(self, sym: Symbol) -> None:
+        """rdi and rsi for `git revert` and `git log`: the history id and the
+        variable's name, for `(HEAD -> x)` and `fatal: bad revision 'x~1'`."""
+        self.emit("mov", f"rdi, {self.ids[sym]}", f"history of {sym.name}")
+        self.emit("lea", f"rsi, [rip + {self.string(sym.name)}]")
 
     def lower_if(self, cond: ast.Expr, then: ast.Block, else_: ast.Block | ast.If | None) -> None:
         else_label, end_label = self.new_label("else", "endif")
@@ -505,7 +546,8 @@ def gen(
     """Assembly for a checked program with no errors. With `annotate`, each
     statement gets a comment with its line number, plus its source text when
     `source` is given. Unsupported constructs give E501 and no assembly."""
-    diagnostics = unsupported(program)
+    ids = tracked_ids(symbols)
+    diagnostics = unsupported(program, ids)
     if diagnostics:
         return "", diagnostics
-    return Codegen(program, symbols, annotate, source).generate(), []
+    return Codegen(program, symbols, ids, annotate, source).generate(), []
