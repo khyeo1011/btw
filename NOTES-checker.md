@@ -8,8 +8,6 @@ and 7.
 
 - `check(program, comments=None) -> (symbols, diagnostics)`. `comments`
   defaults to `program.comments`; the driver passes `program.comments`.
-  NOTES-harness still lists `check(program)` in its interface table, so the
-  harness owner should update that row.
 - It fills `ty` on every expression and `sym` on every Var, Call (and its
   callee Ident) and declaration Ident (globals, constants, microservices,
   parameters, locals). A name that doesn't resolve gets `sym = None`.
@@ -48,15 +46,6 @@ and 7.
    fifth, with the file's total count in the message.
 9. Finish: sort and drop duplicates, the same way `driver.sort_diagnostics`
    does. The driver sorts again after Big O and suppression.
-
-## Driver change
-
-The driver called `bigo.check_bigo` unconditionally, so every `btw check`
-exited 2 until the Big O card landed. `driver.check` now handles a missing
-`bigo.py` the same way it handles a missing `suppress.py`: no Big O
-diagnostics instead of a "not implemented" error. Once `bigo.py` exists,
-this path does nothing, so the Big O card has nothing to undo. Until then,
-`btw run` doesn't stop on E417.
 
 ## Decisions where the spec is silent
 
@@ -112,26 +101,17 @@ this path does nothing, so the Big O card has nothing to undo. Until then,
 17. **E403 help for `git revert`** is "try `sudo git revert X`". The spec
     only gives the `git push --force` form.
 
-## Waiting on other cards
-
-These golden files can't match yet. `tests/test_checker.py` marks them as
-strict xfails, so each one will flip to a pass when its card lands.
-
-- `p2_pipes`, `p2_e405_pipe_console_log_value`: pipes aren't parsed yet. The
-  E405 "`console.log` returns nothing" can't come from the checker, because
-  the desugared AST has no node for a pipeline used as a value. The parser
-  should report it when it desugars the pipeline.
-
 ## Status
 
 - Every `tests/golden/*.diag` matches `btw check --format short`, Big O
   and suppression codes included (`bigo.py` and `suppress.py` run in the
-  driver), except for the two files above.
-- `uv run pytest tests/test_checker.py`: 124 pass and 2 xfail. The tests
-  include that golden comparison, plus unit tests for symbols and types and
-  for every message and span the corpus doesn't cover.
-- `tests/test_golden.py` still fails for every program that runs, because
-  `interp.py` doesn't exist yet.
+  driver).
+- The E405 "`console.log` returns nothing" for a pipe used as a value comes
+  from the parser, not the checker: the desugared AST has no node for a
+  pipeline (NOTES-extras).
+- `uv run pytest tests/test_checker.py` passes. The tests include that
+  golden comparison, plus unit tests for symbols and types and for every
+  message and span the corpus doesn't cover.
 
 ## Questions
 

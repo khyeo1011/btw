@@ -64,5 +64,5 @@ Specs: Language Spec 1 and 2, Implementation Spec 4.3 and 5.
   expects E400, and every lexer diagnostic present verbatim in the `.diag`.
   The corpus has four lexer diagnostics (unexpected `@`, `git push`,
   unterminated string, number too large), all matching.
-- `tests/test_golden.py` still fails everywhere with "parser is not
-  implemented yet".
+- The section 13 roast tokens (`===`, `;`, `++`) were added later by the P2
+  extras card (NOTES-extras).

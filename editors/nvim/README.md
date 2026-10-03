@@ -18,7 +18,7 @@ dofile("/path/to/btw/editors/nvim/btw.lua")     -- filetype and language server
 For one session, from the repo root:
 
 ```
-uv run nvim --cmd "set rtp+=editors/nvim" --cmd "luafile editors/nvim/btw.lua" demo.btw
+uv run nvim --cmd "set rtp+=editors/nvim" --cmd "luafile editors/nvim/btw.lua" tests/golden/p0_fizzbuzz.btw
 ```
 
 Use `--cmd`, not `-c`: `-c` runs after the file is opened, too late for the

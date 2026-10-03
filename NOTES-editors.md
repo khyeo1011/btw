@@ -104,9 +104,8 @@ separately:
 - **Neovim 0.12, headless.** A `.btw` file gets filetype `btw` and
   `syntax/btw.vim`. The same fixture, mapped to Vim groups, passes 505
   per-column checks, and the golden sweep gives the same result as VS Code.
-  The client spawns `btw-lsp`. Since `btw.lsp` doesn't exist yet, it exits
-  with code 1 and the `ModuleNotFoundError` lands in the LSP log, which is the
-  expected error.
+  The client spawns `btw-lsp`. (The server didn't exist yet when this was
+  checked; NOTES-lsp covers Neovim against the real server.)
 
 To check VS Code by hand: run `npm install` in `editors/vscode`, open that
 folder in VS Code, press F5, and open any `tests/golden/*.btw` in the new
@@ -116,9 +115,8 @@ a shell where `uv run which btw-lsp` works (`uv run code editors/vscode`,
 with every VS Code window closed first: `code` hands off to a running
 instance, which keeps its own `PATH`), or
 set `btw.serverPath` to the absolute path of `.venv/bin/btw-lsp` in the
-development host window's settings. Until `btw.lsp` exists, the "btw" output
-channel then shows the server exiting with `No module named 'btw.lsp'`.
-Without either, it shows ENOENT and the `PATH` hint.
+development host window's settings. Without either, the "btw" output channel
+shows ENOENT and the `PATH` hint.
 
 ## Spec questions
 

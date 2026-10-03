@@ -117,7 +117,7 @@ Files: `src/btw/lexer.py`, `src/btw/parser.py`, `tests/test_lexer.py`,
 
 ## Status
 
-Whole suite, `uv run pytest` on `claude/elegant-davinci-wyrgrd`:
+Whole suite, `uv run pytest`:
 
 ```
 ============================ 1129 passed in 28.80s =============================
@@ -145,5 +145,3 @@ Doesn't work, or not done:
   pipes; the fix belongs in `hovers.py`).
 - Open questions above: other ports, the `++` variable name, the W204
   cascade on `i++`.
-- Branch: the session assigned `claude/elegant-davinci-wyrgrd`, not a
-  `feature/NAME` branch as CLAUDE.md asks. Nothing is merged into `main`.
