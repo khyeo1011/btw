@@ -3,9 +3,30 @@ name = "btw"
 version = "0.1.0"
 description = "A joke programming language with a real compiler, a Big O checker and a language server"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Sebastian Yeo", email = "khyeo81@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = ["pygls>=2.1.1"]
+keywords = ["compiler", "programming-language", "language-server", "esolang", "x86-64"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Interpreters",
+]
+
+[project.urls]
+Homepage = "https://github.com/khyeo1011/btw"
+Source = "https://github.com/khyeo1011/btw"
+Issues = "https://github.com/khyeo1011/btw/issues"
+Changelog = "https://github.com/khyeo1011/btw/blob/main/CHANGELOG.md"
 
 [project.scripts]
 btw = "btw.cli:main"
@@ -14,6 +35,12 @@ btw-lsp = "btw.lsp:main"
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The wheel gets the C runtime through the src/btw/btw_rt.c symlink. The sdist
+# also carries the files needed to run the test suite from it.
+source-include = ["runtime/**", "tests/**", "docs/**", "CHANGELOG.md"]
+source-exclude = ["**/__pycache__/**"]
 
 [dependency-groups]
 dev = ["pytest>=9.1.1"]

@@ -16,7 +16,12 @@ from typing import TextIO
 from btw.diagnostics import Diagnostic, Severity
 from btw.span import Pos, Span
 
-RUNTIME = Path(__file__).resolve().parents[2] / "runtime" / "btw_rt.c"
+# runtime/btw_rt.c, reached through the src/btw/btw_rt.c symlink so that wheels
+# ship a copy next to this module. The repo path is the fallback for checkouts
+# where git didn't create the symlink.
+RUNTIME = Path(__file__).with_name("btw_rt.c")
+if not RUNTIME.is_file():
+    RUNTIME = Path(__file__).resolve().parents[2] / "runtime" / "btw_rt.c"
 
 
 class BtwError(Exception):

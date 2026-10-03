@@ -1,0 +1,83 @@
+name: Release
+
+# Push a tag like v0.1.0 to build, check and publish a release. RELEASING.md
+# has the whole checklist.
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # gh release create.
+      contents: write
+      # PyPI trusted publishing, used only when PUBLISH_TO_PYPI is set.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          python-version: "3.12"
+
+      - name: Check the tag matches the package version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match pyproject.toml version $version."
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest
+
+      - name: Build
+        run: uv build --no-sources
+
+      - name: Check distributions
+        run: scripts/check-dist.sh dist
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            /^\[/ && found { exit }
+            $0 ~ "^## \\[" { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found
+          ' CHANGELOG.md > notes.md
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "btw $VERSION" --notes-file notes.md --verify-tag
+
+      # Off until the repository variable PUBLISH_TO_PYPI is "true" and a
+      # trusted publisher for this workflow is set up on PyPI.
+      - name: Publish to PyPI
+        if: vars.PUBLISH_TO_PYPI == 'true'
+        run: uv publish --trusted-publishing always dist/*
