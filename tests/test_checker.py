@@ -11,12 +11,8 @@ from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
 
-# Goldens that can't match until another card lands: pipes are parsed by the
-# parser card.
-WAITING = {
-    "p2_pipes": "pipes (parser card)",
-    "p2_e405_pipe_console_log_value": "pipes (parser card)",
-}
+# Goldens that can't match until another card lands (none right now).
+WAITING: dict[str, str] = {}
 
 
 def run_check(src):
