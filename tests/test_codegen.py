@@ -47,51 +47,39 @@ def e501s(source: str) -> list[tuple[str, Span]]:
     return [(d.message, d.span) for d in diagnostics if d.code == "E501"]
 
 
-def test_microservice_and_call_are_e501():
-    source = (
-        "i use arch btw\n"
-        "microservice f(n) O(1) {\n"
-        "    ship it n\n"
-        "}\n"
-        "serve localhost:3000 {\n"
-        "    console.log f(1)\n"
-        "}\n"
-        ":wq\n"
+def too_many_histories() -> str:
+    """65 tracked variables: one more than the runtime's history table."""
+    return program(
+        *[f"    npm install v{k} = {k}" for k in range(65)],
+        *[f"    git log v{k}" for k in range(65)],
+        "    git revert v64",
+        "    git log v0",
     )
-    assert e501s(source) == [
-        (
-            "Not implemented: `microservice` in native builds. Try `btw run`.",
-            Span(Pos(1, 0), Pos(1, 12)),
-        ),
-        (
-            "Not implemented: `f(...)` in native builds. Try `btw run`.",
-            Span(Pos(5, 16), Pos(5, 20)),
-        ),
-    ]
 
 
-def test_git_revert_and_git_log_are_e501():
-    source = program(
-        "    npm install x = 1",
-        "    git push --force x = 2",
-        "    git revert x",
-        "    sudo git revert x",
-        "    git log x",
-    )
+def test_history_past_64_variables_is_e501():
     revert = "Not implemented: `git revert` in native builds. Try `btw run`."
     log = "Not implemented: `git log` in native builds. Try `btw run`."
-    assert e501s(source) == [
-        (revert, Span(Pos(4, 4), Pos(4, 16))),
-        (revert, Span(Pos(5, 4), Pos(5, 21))),
-        (log, Span(Pos(6, 4), Pos(6, 13))),
+    assert e501s(too_many_histories()) == [
+        (log, Span(Pos(131, 4), Pos(131, 15))),
+        (revert, Span(Pos(132, 4), Pos(132, 18))),
     ]
+
+
+def test_history_up_to_64_variables_builds():
+    source = program(
+        *[f"    npm install v{k} = {k}" for k in range(64)],
+        *[f"    git log v{k}" for k in range(64)],
+    )
+    _, text = asm(source)
+    assert "        mov     rdi, 63\n" in text and "rdi, 64" not in text
 
 
 def test_e501_is_build_exit_1_without_running_gcc(tmp_path, capsys):
     from btw import cli
 
     path = tmp_path / "prog.btw"
-    path.write_text(program("    npm install x = 1", "    git log x"))
+    path.write_text(too_many_histories())
     assert cli.main(["build", "--format", "short", str(path)]) == 1
     assert "error[E501]: Not implemented: `git log`" in capsys.readouterr().err
     assert not (tmp_path / "prog").exists()
@@ -146,6 +134,146 @@ def test_big_literals_use_mov():
     _, text = asm(program("    console.log 2147483648", "    console.log -2147483648"))
     assert "mov     rax, 2147483648" in text
     assert "push    2147483647" not in text
+
+
+def microservices(*items: str, body: tuple[str, ...] = ("    console.log 1",)) -> str:
+    lines = ["i use arch btw", *items, "serve localhost:3000 {", *body, "}", ":wq"]
+    return "\n".join(lines) + "\n"
+
+
+def test_microservice_prologue_and_epilogue():
+    source = microservices(
+        "microservice sum6(a, b, c, d, e, f) O(1) {",
+        "    npm install g = a + b + c + d + e + f",
+        "    ship it g",
+        "}",
+        "microservice nothing() O(1) {",
+        "}",
+    )
+    _, text = asm(source)
+    assert (
+        "btw_fn_sum6:\n"
+        "        push    rbp\n"
+        "        mov     rbp, rsp\n"
+        "        sub     rsp, 64\n"
+        "        inc     qword ptr [rip + btw_depth]\n"
+        "        cmp     qword ptr [rip + btw_depth], 1000\n"
+        "        jg      .Lstack_overflow\n"
+        "        mov     qword ptr [rbp - 8], rdi\n"
+        "        mov     qword ptr [rbp - 16], rsi\n"
+        "        mov     qword ptr [rbp - 24], rdx\n"
+        "        mov     qword ptr [rbp - 32], rcx\n"
+        "        mov     qword ptr [rbp - 40], r8\n"
+        "        mov     qword ptr [rbp - 48], r9\n"
+    ) in text
+    assert "        jmp     .Lret_sum6\n" in text
+    assert (
+        "btw_fn_nothing:\n"
+        "        push    rbp\n"
+        "        mov     rbp, rsp\n"
+        "        inc     qword ptr [rip + btw_depth]\n"
+        "        cmp     qword ptr [rip + btw_depth], 1000\n"
+        "        jg      .Lstack_overflow\n"
+        "\n"
+        "        xor     eax, eax\n"
+        ".Lret_nothing:\n"
+        "        dec     qword ptr [rip + btw_depth]\n"
+        "        leave\n"
+        "        ret\n"
+    ) in text
+
+
+def test_stack_overflow_handler_only_with_microservices():
+    _, text = asm(program("    console.log 1"))
+    assert "btw_depth" in text and ".Lstack_overflow" not in text
+    _, text = asm(microservices("microservice f() O(1) {", "}"))
+    assert (
+        ".Lstack_overflow:\n"
+        "        and     rsp, -16\n"
+        "        call    btw_rt_stack_overflow\n"
+    ) in text
+    assert "btw_depth" not in text.split("btw_fn_f:")[0].split(".text")[1]  # serve is depth 0
+
+
+def call_site(text: str, callee: str) -> list[str]:
+    """The lines from the argument pops up to the push of the result."""
+    lines = text.splitlines()
+    end = lines.index(f"        call    {callee}") + 2
+    start = end - 2
+    while lines[start - 1].startswith(("        pop", "        sub     rsp, 8")):
+        start -= 1
+    return [line.split()[0] + " " + " ".join(line.split()[1:]) for line in lines[start : end + 1]]
+
+
+def test_call_pops_arguments_in_reverse_and_aligns():
+    items = ("microservice f(a, b) O(1) {", "    ship it a - b", "}")
+    _, text = asm(microservices(*items, body=("    console.log f(5, 3)",)))
+    assert call_site(text, "btw_fn_f") == [
+        "pop rsi",
+        "pop rdi",
+        "call btw_fn_f",
+        "push rax",
+        "pop rdi",
+    ]
+    _, text = asm(microservices(*items, body=("    console.log 1 + f(5, 3)",)))
+    assert call_site(text, "btw_fn_f") == [
+        "pop rsi",
+        "pop rdi",
+        "sub rsp, 8",
+        "call btw_fn_f",
+        "add rsp, 8",
+        "push rax",
+    ]
+
+
+def test_six_arguments_use_every_register():
+    items = ("microservice f(a, b, c, d, e, g) O(1) {", "    ship it a", "}")
+    _, text = asm(microservices(*items, body=("    f(1, 2, 3, 4, 5, 6)",)))
+    pops = call_site(text, "btw_fn_f")[:6]
+    assert pops == ["pop r9", "pop r8", "pop rcx", "pop rdx", "pop rsi", "pop rdi"]
+
+
+def test_serve_and_a_microservice_named_main_have_their_own_labels():
+    _, text = asm(microservices("microservice main() O(1) {", "    ship it 1", "}"))
+    assert "main:\n" in text and "btw_fn_main:\n" in text
+    assert text.count(".Lret_serve:\n") == 1
+    assert text.count(".Lret_main:\n") == 1
+
+
+def test_annotate_microservice_header():
+    source = microservices("microservice f(n) O(1) {", "    ship it n", "}")
+    _, text = asm(source, annotate=True)
+    assert "\n\n        # line 2: microservice f(n) O(1)\nbtw_fn_f:\n" in text
+    assert "\n\n\n" not in text
+
+
+def test_history_calls():
+    source = program(
+        "    npm install x = 1",
+        "    npm install untracked = 2",
+        "    git push --force x = untracked",
+        "    git push --force untracked = 3",
+        "    git revert x",
+        "    git log x",
+        top=("npm install -g ON = LGTM", "microservice f() O(1) {", "    ship it 1", "}"),
+    ).replace("    git log x\n", "    git log x\n    sudo git push --force ON = 404\n    git log ON\n")
+    _, text = asm(source)
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    assert lines.count("call btw_rt_hist_reset") == 2  # x and the constant ON
+    assert lines.count("call btw_rt_hist_commit") == 2  # x and ON, not untracked
+    start = lines.index("call btw_rt_hist_revert") - 2
+    assert lines[start : start + 4] == [
+        "mov rdi, 1",
+        "lea rsi, [rip + .Lstr0]",
+        "call btw_rt_hist_revert",
+        "mov qword ptr [rbp - 8], rax",
+    ]
+    logs = [k for k, line in enumerate(lines) if line == "call btw_rt_hist_log"]
+    assert [lines[k - 3 : k] for k in logs] == [
+        ["mov rdi, 1", "lea rsi, [rip + .Lstr0]", "mov rdx, 0"],
+        ["mov rdi, 0", "lea rsi, [rip + .Lstr1]", "mov rdx, 1"],
+    ]
+    assert '.Lstr0: .string "x"\n' in text and '.Lstr1: .string "ON"\n' in text
 
 
 # The push-depth invariant
@@ -219,6 +347,157 @@ DIFFERENTIAL = {
         "    console.log z || 5 % 0 == 1",
     ),
     "expression_statement": program("    npm install x = 2", "    x * 2 + 1", "    console.log x"),
+    "libc_names": microservices(
+        "microservice main(a) O(1) {",
+        "    ship it a / 0",
+        "}",
+        "microservice printf() O(1) {",
+        "}",
+        "microservice exit(x) O(n) {",
+        "    doomscroll LGTM { ship it x }",
+        "}",
+        body=("    console.log 1", "    ship it 7"),
+    ),
+    "nested_calls": microservices(
+        "microservice add(a, b) O(1) {",
+        "    ship it a + b",
+        "}",
+        "microservice pick(a, b, c, d, e, f) O(1) {",
+        "    ship it a * 100000 + b * 10000 + c * 1000 + d * 100 + e * 10 + f",
+        "}",
+        "microservice id(x) O(1) {",
+        "    console.log x",
+        "    ship it x",
+        "}",
+        body=(
+            "    console.log pick(id(1), id(2), add(id(3), 0), 4, add(2, add(1, 2)), id(6))",
+            "    console.log 1 + (2 * (3 + add(4, 5 * add(6, 7))))",
+            "    console.log add(1, 2) == 3 && add(2, 2) != 5",
+            "    console.log -add(1, 2) / add(0, 2) % add(1, 1)",
+            "    console.log 7 - add(7, 0) + add(add(add(1, 1), 1), 1)",
+            "    add(1, id(9))",
+        ),
+    ),
+    "short_circuit_skips_calls": microservices(
+        "microservice say(x) O(1) {",
+        "    console.log x",
+        "    ship it x",
+        "}",
+        body=(
+            "    console.log say(1) == 2 && say(3) == 3",
+            "    console.log say(4) == 4 || say(5) == 5",
+            "    console.log say(6) == 6 && (say(7) == 0 || say(8) == 8)",
+            "    vibe check say(9) > 0 { console.log say(10) }",
+        ),
+    ),
+    "microservice_statements": microservices(
+        "npm install total = 0",
+        "npm install -g STEP = 3",
+        "microservice count(n) O(n) {",
+        "    npm install i = 0",
+        "    npm install hits = 0",
+        "    doomscroll LGTM {",
+        "        vibe check i >= n { touch grass }",
+        "        vibe check i % STEP == 0 {",
+        "            git push --force hits = hits + 1",
+        "        } skill issue vibe check i == 7 {",
+        "            ship it -1",
+        "        }",
+        "        git push --force i = i + 1",
+        "    }",
+        "    git push --force total = total + hits",
+        "    console.log i > 3",
+        "    ship it hits",
+        "}",
+        "microservice bump(n) O(1) {",
+        "    git push --force n = n + 1",
+        "    ship it n",
+        "}",
+        body=(
+            "    console.log count(5)",
+            "    console.log count(7)",
+            "    console.log count(20)",
+            "    console.log total",
+            "    npm install x = 41",
+            "    console.log bump(x)",
+            "    console.log x",
+            "    ship it count(3) + 40",
+        ),
+    ),
+    "recursion": microservices(
+        "microservice fib(n) O(n) {",
+        "    vibe check n < 2 { ship it n }",
+        "    ship it fib(n - 1) + fib(n - 2)",
+        "}",
+        "microservice down(n) O(n) {",
+        "    vibe check n == 0 { ship it 0 }",
+        "    ship it 1 + (2 * down(n - 1)) / 2",
+        "}",
+        body=("    console.log fib(20)", "    console.log down(999)", "    console.log down(1000)"),
+    ),
+    "arguments_run_before_the_depth_check": microservices(
+        "microservice say(x) O(1) {",
+        "    console.log x",
+        "    ship it x",
+        "}",
+        "microservice down(n, z) O(n) {",
+        "    vibe check n == 0 { ship it say(1 / z) }",
+        "    ship it down(n - 1, z)",
+        "}",
+        body=("    console.log down(998, 1)", "    console.log down(999, 0)"),
+    ),
+    "overflow_with_odd_depth": microservices(
+        "microservice down(n) O(n) {",
+        "    ship it 1 + 2 * (3 + down(n + 1))",
+        "}",
+        body=("    console.log 1", "    console.log 5 + down(0)"),
+    ),
+    "history_from_microservices": microservices(
+        "npm install total = 0",
+        "npm install -g FLAG = LGTM",
+        "microservice add(n) O(1) {",
+        "    git push --force total = total + n",
+        "    sudo git push --force FLAG = !FLAG",
+        "    ship it total",
+        "}",
+        body=(
+            "    console.log add(add(1) + add(2))",
+            "    git revert total",
+            "    sudo git revert FLAG",
+            "    git log total",
+            "    git log FLAG",
+            "    npm install i = 0",
+            "    doomscroll i < 3 {",
+            "        npm install seen = i * 10",
+            "        git push --force seen = add(seen)",
+            "        git log seen",
+            "        git push --force i = i + 1",
+            "    }",
+            "    git log i",
+            "    ship it total",
+        ),
+    ),
+    "history_cap_and_toggle": program(
+        "    npm install n = 0",
+        "    doomscroll n < 40 { git push --force n = n + 1 }",
+        "    git revert n",
+        "    git revert n",
+        "    git revert n",
+        "    git log n",
+        "    npm install b = 404",
+        "    git push --force b = 1 == 1",
+        "    git revert b",
+        "    console.log b",
+        "    git log b",
+        "    npm install once = 1",
+        "    git revert once",
+    ),
+    "division_by_zero_in_a_call": microservices(
+        "microservice div(a, b) O(1) {",
+        "    ship it a / b",
+        "}",
+        body=("    console.log div(7, 2)", "    console.log 1 + div(1, div(1, 2))"),
+    ),
 }
 
 
@@ -227,6 +506,103 @@ DIFFERENTIAL = {
 def test_native_matches_interpreter(name, tmp_path):
     source = DIFFERENTIAL[name]
     assert native(source, tmp_path) == interpret(source)
+
+
+# Stack alignment: every runtime function checks rsp on entry
+
+ALIGNMENT_PROBE = r"""
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#define btw_rt_print_int real_print_int
+#define btw_rt_print_bool real_print_bool
+#define btw_rt_print_str real_print_str
+#define btw_rt_div_zero real_div_zero
+#define btw_rt_stack_overflow real_stack_overflow
+#define btw_rt_hist_reset real_hist_reset
+#define btw_rt_hist_commit real_hist_commit
+#define btw_rt_hist_revert real_hist_revert
+#define btw_rt_hist_log real_hist_log
+#include "RUNTIME"
+#undef btw_rt_print_int
+#undef btw_rt_print_bool
+#undef btw_rt_print_str
+#undef btw_rt_div_zero
+#undef btw_rt_stack_overflow
+#undef btw_rt_hist_reset
+#undef btw_rt_hist_commit
+#undef btw_rt_hist_revert
+#undef btw_rt_hist_log
+
+/* At -O0 with a frame pointer, rbp is 16-byte aligned exactly when the
+ * caller's rsp was aligned at the call. */
+#define CHECK do { if ((unsigned long)__builtin_frame_address(0) % 16) { \
+    fputs("misaligned call\n", stderr); _exit(99); } } while (0)
+
+void btw_rt_print_int(long v) { CHECK; real_print_int(v); }
+void btw_rt_print_bool(long v) { CHECK; real_print_bool(v); }
+void btw_rt_print_str(const char *s) { CHECK; real_print_str(s); }
+void btw_rt_div_zero(void) { CHECK; real_div_zero(); }
+void btw_rt_stack_overflow(void) { CHECK; real_stack_overflow(); }
+void btw_rt_hist_reset(long id, long v) { CHECK; real_hist_reset(id, v); }
+void btw_rt_hist_commit(long id, long v) { CHECK; real_hist_commit(id, v); }
+long btw_rt_hist_revert(long id, const char *name) { CHECK; return real_hist_revert(id, name); }
+void btw_rt_hist_log(long id, const char *name, long is_bool) {
+    CHECK; real_hist_log(id, name, is_bool);
+}
+"""
+
+
+@pytest.fixture(scope="module")
+def probe_runtime(tmp_path_factory) -> Path:
+    directory = tmp_path_factory.mktemp("probe")
+    source = directory / "probe.c"
+    source.write_text(ALIGNMENT_PROBE.replace("RUNTIME", str(driver.RUNTIME)))
+    obj = directory / "probe.o"
+    subprocess.run(
+        ["gcc", "-O0", "-fno-omit-frame-pointer", "-c", "-o", str(obj), str(source)], check=True
+    )
+    return obj
+
+
+ALIGNMENT_PROGRAMS = {
+    **{f"differential_{name}": source for name, source in DIFFERENTIAL.items()},
+    **{
+        f"golden_{path.stem}": path.read_text()
+        for path in sorted(GOLDEN.glob("*.btw"))
+        if any(path.with_suffix(suffix).exists() for suffix in (".out", ".err", ".exit"))
+    },
+}
+
+
+@needs_gcc
+@pytest.mark.parametrize("name", ALIGNMENT_PROGRAMS)
+def test_every_runtime_call_is_aligned(name, probe_runtime, tmp_path):
+    source = ALIGNMENT_PROGRAMS[name]
+    diagnostics, text = asm(source)
+    if text is None:
+        pytest.skip("doesn't build: " + ", ".join(sorted({d.code for d in diagnostics})))
+    assembly = tmp_path / "prog.s"
+    assembly.write_text(text)
+    binary = tmp_path / "prog"
+    subprocess.run(["gcc", "-o", str(binary), str(assembly), str(probe_runtime)], check=True)
+    result = subprocess.run([binary], capture_output=True, timeout=5)
+    stdout, stderr = result.stdout.decode(), result.stderr.decode()
+    assert (stdout, stderr, result.returncode) == interpret(source)
+
+
+@needs_gcc
+def test_alignment_probe_catches_a_missing_pad(monkeypatch, probe_runtime, tmp_path):
+    """The probe really fails when the padding is left out."""
+    monkeypatch.setattr(codegen.Codegen, "call", lambda self, function: self.emit("call", function))
+    source = DIFFERENTIAL["nested_calls"]
+    _, text = asm(source)
+    assembly = tmp_path / "prog.s"
+    assembly.write_text(text)
+    binary = tmp_path / "prog"
+    subprocess.run(["gcc", "-o", str(binary), str(assembly), str(probe_runtime)], check=True)
+    result = subprocess.run([binary], capture_output=True, timeout=5)
+    assert result.returncode == 99 and result.stderr == b"misaligned call\n"
 
 
 # E502: gcc rejects the assembly
