@@ -118,8 +118,9 @@ def cmd_tokens(args: argparse.Namespace, source: str) -> int:
 
 def cmd_parse(args: argparse.Namespace, source: str) -> int:
     program, diagnostics = driver.parse(source)
-    for line in dump(program):
-        print(line)
+    from btw.parser import format_ast  # driver.parse succeeded, so the parser exists
+
+    sys.stdout.write(format_ast(program))
     report(args, source, diagnostics, sys.stderr)
     return 0
 
