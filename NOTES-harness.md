@@ -43,9 +43,9 @@ decided where that spec is silent, the golden test list, and open questions.
 - **Exit code 2** also covers a component that isn't implemented yet (a
   one-line `btw: ... is not implemented yet`) and internal errors (E500 plus a
   traceback on stderr).
-- **`tokens`** prints `LINE:COL-LINE:COL KIND 'text'`, plus the value when
-  there is one. **`parse`** prints one node or field per line, indented two
-  spaces per level, with each node's span.
+- **`tokens`** prints `lexer.format_tokens`: one token per line as
+  `KIND "text" LINE:COL` (NOTES-lexer). **`parse`** prints one node or field
+  per line, indented two spaces per level, with each node's span.
 - **Missing `suppress.py`** (P2) means nothing is suppressed, rather than a
   "not implemented" error, so P0 and P1 work without it.
 - **Golden runner.** A golden test fails while `btw check` or `btw run` exits

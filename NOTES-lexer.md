@@ -9,10 +9,7 @@ Specs: Language Spec 1 and 2, Implementation Spec 4.3 and 5.
   It never raises: a bug inside the lexer becomes E500 plus an EOF token where
   lexing stopped.
 - `format_tokens(tokens) -> str`: one token per line, `KIND "text" LINE:COL`,
-  1-based. **The harness's `btw tokens` (`cli.py`) doesn't call it**: it
-  formats tokens itself as `LINE:COL-LINE:COL KIND 'text' value`. Either
-  `cli.py` switches to `format_tokens`, or `format_tokens` goes away; that's
-  the harness card's call.
+  1-based. `btw tokens` prints exactly this.
 - `match_keyword(src, i)` and `scan_string(src, i)` work on string indices
   only; `_Lexer.pos_at` is the one place that converts to UTF-16 columns.
 
