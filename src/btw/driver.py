@@ -89,9 +89,14 @@ def parse(source: str):
 def check(source: str, path: str):
     """Return (program, symbols, diagnostics): Implementation Spec 7, passes 1 to 9."""
     program, diagnostics = parse(source)
-    symbols, check_diagnostics = _component("checker").check(program)
+    symbols, check_diagnostics = _component("checker").check(program, program.comments)
     diagnostics += check_diagnostics
-    diagnostics += _component("bigo").check_bigo(program)
+    try:
+        bigo = _component("bigo")
+    except NotImplementedError:
+        pass  # until the Big O card lands, there are no Big O diagnostics
+    else:
+        diagnostics += bigo.check_bigo(program)
     try:
         suppress = _component("suppress")
     except NotImplementedError:
