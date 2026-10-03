@@ -1,0 +1,8 @@
+i use arch btw
+microservice total(n) O(1) {
+    ship it n
+}
+serve localhost:3000 {
+    console.log total
+}
+:wq

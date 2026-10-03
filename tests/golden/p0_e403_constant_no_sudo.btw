@@ -1,0 +1,6 @@
+i use arch btw
+npm install -g LIMIT = 10
+serve localhost:3000 {
+    git push --force LIMIT = 11
+}
+:wq

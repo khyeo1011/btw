@@ -1,0 +1,14 @@
+i use arch btw
+microservice double(x) O(1) {
+    ship it x * 2
+}
+microservice add(a, b) O(1) {
+    ship it a + b
+}
+serve localhost:3000 {
+    3 | double | add(10) | console.log
+    npm install v = 1 + 2 | double
+    console.log v
+    "piped" | console.log
+}
+:wq

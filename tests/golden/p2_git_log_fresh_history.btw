@@ -1,0 +1,11 @@
+i use arch btw
+serve localhost:3000 {
+    npm install round = 0
+    doomscroll round < 2 {
+        npm install ok = LGTM
+        git push --force ok = 404
+        git log ok
+        git push --force round = round + 1
+    }
+}
+:wq

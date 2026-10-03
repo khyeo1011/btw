@@ -1,0 +1,11 @@
+i use arch btw
+serve localhost:3000 {
+    npm install n = 3
+    vibe check n {
+        console.log "yes"
+    }
+    doomscroll n - 3 {
+        console.log "no"
+    }
+}
+:wq

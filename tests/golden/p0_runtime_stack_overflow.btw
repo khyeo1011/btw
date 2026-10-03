@@ -1,0 +1,12 @@
+i use arch btw
+microservice depth(n) O(n) {
+    vibe check n == 1 {
+        ship it 1
+    }
+    ship it 1 + depth(n - 1)
+}
+serve localhost:3000 {
+    console.log depth(1000)
+    console.log depth(1001)
+}
+:wq

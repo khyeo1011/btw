@@ -1,0 +1,6 @@
+i use arch btw
+serve localhost:3000 {
+    git push --force = 5
+    console.log ghost
+}
+:wq

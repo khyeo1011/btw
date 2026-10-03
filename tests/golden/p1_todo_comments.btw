@@ -1,0 +1,8 @@
+i use arch btw
+// TODO add auth
+serve localhost:3000 { // TODO rate limiting
+    //TODO tests
+    console.log "shipping" // TODO: remove debug log
+}
+// TODO write docs
+:wq

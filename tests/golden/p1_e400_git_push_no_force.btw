@@ -1,0 +1,6 @@
+i use arch btw
+serve localhost:3000 {
+    npm install x = 1
+    git push x = 2
+}
+:wq

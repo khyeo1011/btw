@@ -1,0 +1,10 @@
+i use arch btw
+// works on my machine
+microservice tally(n) {
+    n + 1
+    ship it n * 3
+}
+serve localhost:3000 {
+    console.log tally(4)
+}
+:wq

@@ -1,0 +1,6 @@
+i use arch btw
+serve localhost:3000 {
+    // works on my machine
+    console.log "fine"
+}
+:wq

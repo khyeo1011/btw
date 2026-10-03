@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    console.log "one"
+}
+serve localhost:3000 {
+    console.log "two"
+}
+:wq

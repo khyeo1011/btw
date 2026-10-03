@@ -1,0 +1,2 @@
+5:26: error[E418]: I'm a teapot: `x` was installed as a number, you pushed a boolean. Dependency conflict.
+6:29: error[E418]: I'm a teapot: `flag` was installed as a boolean, you pushed a number. Dependency conflict.

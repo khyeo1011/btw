@@ -1,0 +1,10 @@
+i use arch btw
+serve localhost:3000 {
+    npm install code = 3
+    console.log "deploying"
+    vibe check code > 0 {
+        ship it code * 7
+    }
+    console.log "unreachable"
+}
+:wq

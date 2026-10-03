@@ -1,0 +1,11 @@
+i use arch btw
+microservice audit(n) O(1) {
+    npm install t = n
+    git revert t
+    git log n
+    ship it t
+}
+serve localhost:3000 {
+    console.log audit(1)
+}
+:wq

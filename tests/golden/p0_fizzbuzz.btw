@@ -1,0 +1,12 @@
+i use arch btw
+serve localhost:3000 {
+    npm install i = 1
+    doomscroll i <= 15 {
+        vibe check i % 15 == 0 { console.log "FizzBuzz" }
+        skill issue vibe check i % 3 == 0 { console.log "Fizz" }
+        skill issue vibe check i % 5 == 0 { console.log "Buzz" }
+        skill issue { console.log i }
+        git push --force i = i + 1
+    }
+}
+:wq

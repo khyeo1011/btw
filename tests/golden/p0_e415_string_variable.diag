@@ -1,0 +1,1 @@
+3:21: error[E415]: Error: strings are for `console.log` only. Everything else is a number.

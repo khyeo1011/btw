@@ -8,7 +8,8 @@ requires-python = ">=3.14"
 dependencies = ["pygls>=2.1.1"]
 
 [project.scripts]
-btw = "btw:main"
+btw = "btw.cli:main"
+btw-lsp = "btw.lsp:main"
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]

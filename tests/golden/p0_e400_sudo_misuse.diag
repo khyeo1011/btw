@@ -1,0 +1,1 @@
+3:10: error[E400]: `sudo` only works with `git push --force` and `git revert`.

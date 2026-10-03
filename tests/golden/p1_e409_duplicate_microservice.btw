@@ -1,0 +1,11 @@
+i use arch btw
+microservice ping() O(1) {
+    ship it 1
+}
+microservice ping() O(1) {
+    ship it 2
+}
+serve localhost:3000 {
+    console.log "pong"
+}
+:wq

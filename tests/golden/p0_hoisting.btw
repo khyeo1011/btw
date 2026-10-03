@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    console.log square(12)
+}
+microservice square(x) O(1) {
+    ship it x * x
+}
+:wq

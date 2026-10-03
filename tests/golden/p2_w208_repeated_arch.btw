@@ -1,0 +1,6 @@
+i use arch btw
+i use arch btw
+serve localhost:3000 {
+    console.log "still Arch"
+}
+:wq
