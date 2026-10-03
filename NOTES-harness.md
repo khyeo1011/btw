@@ -66,7 +66,7 @@ change.
 | -------------- | ----------------------------------------- | --------------------------------- |
 | `btw.lexer`    | `lex(source)`                             | `(tokens, comments, diagnostics)` |
 | `btw.parser`   | `parse(tokens, comments)`                 | `(program, diagnostics)`          |
-| `btw.checker`  | `check(program)`                          | `(symbols, diagnostics)`          |
+| `btw.checker`  | `check(program, comments)`                | `(symbols, diagnostics)`          |
 | `btw.bigo`     | `check_bigo(program)` (spec 8)            | diagnostics                       |
 | `btw.suppress` | `apply(program, diagnostics)`             | the diagnostics after suppression |
 | `btw.interp`   | `run(program, symbols, stdout, stderr)`   | the exit code                     |
