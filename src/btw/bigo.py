@@ -121,8 +121,12 @@ def infer(program: ast.Program) -> dict[str, Degree]:
     return {name: cost.degree for name, cost in costs(program).items()}
 
 
-def format_complexity(degree: Degree, var: str | None = None) -> str:
-    """O(1), O(n), O(n²), O(n³), O(n^4) and up, and O(?) for UNKNOWN."""
+def format_complexity(degree: Degree, var: str | None = None, *, source: bool = False) -> str:
+    """O(1), O(n), O(n²), O(n³), O(n^4) and up, and O(?) for UNKNOWN.
+
+    With source=True, degrees 2 and 3 come out as O(n^2) and O(n^3): the
+    lexer doesn't accept superscripts, so quick-fix edits use this form.
+    """
     n = var or "n"
     match degree:
         case None:
@@ -131,9 +135,9 @@ def format_complexity(degree: Degree, var: str | None = None) -> str:
             return "O(1)"
         case 1:
             return f"O({n})"
-        case 2:
+        case 2 if not source:
             return f"O({n}²)"
-        case 3:
+        case 3 if not source:
             return f"O({n}³)"
         case _:
             return f"O({n}^{degree})"
@@ -187,8 +191,8 @@ def add_sla(ms: ast.Microservice, degree: int, tokens: list[Token] | None) -> li
     close = params_close(tokens, ms) if tokens is not None else None
     if close is None:
         return []
-    sla = format_complexity(degree)
-    return [Fix(f"Add SLA {sla}", [Edit(Span(close.end, close.end), f" {sla}")])]
+    title, text = format_complexity(degree), format_complexity(degree, source=True)
+    return [Fix(f"Add SLA {title}", [Edit(Span(close.end, close.end), f" {text}")])]
 
 
 def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None) -> list[Diagnostic]:
@@ -206,6 +210,7 @@ def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None)
         pass  # unverifiable: W203 above
     elif big_o.degree < d:
         said, actual = format_complexity(big_o.degree, big_o.var), format_complexity(d, big_o.var)
+        text = format_complexity(d, big_o.var, source=True)
         found.append(Diagnostic(
             "E417",
             Severity.ERROR,
@@ -214,12 +219,12 @@ def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None)
             soft=True,
             related=[(cost.loop, f"nested doomscroll #{d} starts here")],
             help=f"try `{actual}`, then tell the PM it was always the plan",
-            fixes=[Fix(f"Update SLA to {actual}", [Edit(big_o.span, actual)])],
+            fixes=[Fix(f"Update SLA to {actual}", [Edit(big_o.span, text)])],
         ))
     elif big_o.degree > d:
         actual = format_complexity(d, big_o.var)
         message = f"Technically correct, but this is {actual}. Sandbagging your estimates?"
-        fix = Fix("Tighten SLA", [Edit(big_o.span, actual)])
+        fix = Fix("Tighten SLA", [Edit(big_o.span, format_complexity(d, big_o.var, source=True))])
         found.append(warning("W417", message, big_o.span, [fix]))
     return found
 

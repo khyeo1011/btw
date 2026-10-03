@@ -289,7 +289,6 @@ The parser reports E408 itself, because only it knows the last token: when the f
 | `O(1)`                                                     | degree 0                                                                     | yes      |
 | `O(n)`, with any single name inside                        | degree 1                                                                     | yes      |
 | `O(n^2)`, `O(n^3)` and so on                               | degree k                                                                     | yes      |
-| `O(n²)`, `O(n³)`                                           | degree 2 or 3 (P2: the lexer accepts superscripts only inside an annotation) | yes      |
 | `O(log n)`, `O(n log n)`, `O(2^n)`, `O(n!)`, anything else | unverifiable                                                                 | no, W203 |
 
 **Inference** (the degree of each microservice)
@@ -319,7 +318,7 @@ P0 only detects direct self-calls. P1 builds the call graph and finds cycles (Ta
 | d is UNKNOWN            | W508: Complexity: O(?). The halting problem is a skill issue. This replaces the three rows above. | the name       |
 | Unverifiable annotation | W203: I can't verify O(log n). I'll take your word for it.                                        | the annotation |
 
-- **Formatting:** degree 0 is `O(1)`, 1 is `O(n)`, 2 is `O(n²)`, 3 is `O(n³)`, 4 and up is `O(n^4)`. Use the annotation's variable name when there is one, `n` otherwise. W203 echoes the annotation's exact source text.
+- **Formatting:** degree 0 is `O(1)`, 1 is `O(n)`, 2 is `O(n²)`, 3 is `O(n³)`, 4 and up is `O(n^4)`. Use the annotation's variable name when there is one, `n` otherwise. W203 echoes the annotation's exact source text. Superscripts are output only: the lexer doesn't accept them, so a quick-fix edit (section 11), which inserts source text, writes degrees 2 and 3 as `O(n^2)` and `O(n^3)`.
 - **E417 help line** (CLI pretty mode): try `O(n²)`, then tell the PM it was always the plan. The suggestion uses the inferred degree, formatted as above.
 - **P2 extra:** E417 carries related information pointing at the innermost doomscroll of the deepest nest ("nested doomscroll #2 starts here").
 - **Known limits, say them in Q&A:** every loop counts as n iterations, so `doomscroll (i < 10)` is counted as O(n) and a halving loop is overestimated. It's a teaching heuristic, not a proof.

@@ -51,6 +51,20 @@ def test_format_complexity(degree, var, text):
     assert format_complexity(degree, var) == text
 
 
+@pytest.mark.parametrize(
+    "degree, var, text",
+    [
+        (0, None, "O(1)"),
+        (1, "m", "O(m)"),
+        (2, None, "O(n^2)"),
+        (3, "k", "O(k^3)"),
+        (4, None, "O(n^4)"),
+    ],
+)
+def test_format_complexity_source_has_no_superscripts(degree, var, text):
+    assert format_complexity(degree, var, source=True) == text
+
+
 # Inference: loops and branches
 
 
@@ -496,6 +510,18 @@ def apply_fix(src: str, fix: Fix) -> str:
 
 
 LINEAR = " npm install i = 0\n doomscroll i < n { git push --force i = i + 1 }"
+QUADRATIC = (
+    " npm install i = 0\n doomscroll i < n {\n"
+    "  npm install j = 0\n  doomscroll j < n { git push --force j = j + 1 }\n"
+    "  git push --force i = i + 1\n }"
+)
+CUBIC = (
+    " npm install i = 0\n doomscroll i < n {\n"
+    "  npm install j = 0\n  doomscroll j < n {\n"
+    "   npm install k = 0\n   doomscroll k < n { git push --force k = k + 1 }\n"
+    "   git push --force j = j + 1\n  }\n"
+    "  git push --force i = i + 1\n }"
+)
 
 
 @pytest.mark.parametrize(
@@ -541,9 +567,9 @@ def test_w102_fix_constant():
     assert d.fixes == [Fix("Add SLA O(1)", [Edit(span(1, 16, 1, 16), " O(1)")])]
 
 
-def test_w102_fix_quadratic_uses_the_spec_superscript():
+def test_w102_fix_quadratic_inserts_source_text():
     [d] = bigo_diagnostics(source(f"microservice f(n) {{\n doomscroll LGTM {{\n{LINEAR}\n }}\n}}"))
-    assert d.fixes == [Fix("Add SLA O(n²)", [Edit(span(1, 17, 1, 17), " O(n²)")])]
+    assert d.fixes == [Fix("Add SLA O(n²)", [Edit(span(1, 17, 1, 17), " O(n^2)")])]
 
 
 def test_w102_without_tokens_has_no_fix():
@@ -559,12 +585,12 @@ def test_driver_check_attaches_the_w102_fix():
 
 def test_e417_fix():
     [d] = check_bigo(program(f"microservice f(n) O(1) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
-    assert d.fixes == [Fix("Update SLA to O(n²)", [Edit(span(1, 18, 1, 22), "O(n²)")])]
+    assert d.fixes == [Fix("Update SLA to O(n²)", [Edit(span(1, 18, 1, 22), "O(n^2)")])]
 
 
 def test_e417_fix_uses_the_annotation_variable():
     [d] = check_bigo(program(f"microservice f(m) O(m) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
-    assert d.fixes == [Fix("Update SLA to O(m²)", [Edit(span(1, 18, 1, 22), "O(m²)")])]
+    assert d.fixes == [Fix("Update SLA to O(m²)", [Edit(span(1, 18, 1, 22), "O(m^2)")])]
 
 
 def test_w417_fix():
@@ -587,9 +613,12 @@ def test_w417_fix_uses_the_annotation_variable():
         (f"microservice f(n) O(1) {{\n{LINEAR}\n}}", "E417"),
         ("microservice f(n) O(n^4) {\n ship it n\n}", "W417"),
         (f"microservice f(n) O(n^3) {{\n{LINEAR}\n}}", "W417"),
+        (f"microservice f(n) {{\n{QUADRATIC}\n}}", "W102"),
+        (f"microservice f(n) O(n) {{\n{CUBIC}\n}}", "E417"),
+        (f"microservice f(n) O(n^4) {{\n{QUADRATIC}\n}}", "W417"),
     ],
     ids=["w102_linear", "w102_no_space", "w102_constant", "w102_multiline", "e417", "w417_constant",
-         "w417_linear"],
+         "w417_linear", "w102_quadratic", "e417_cubic", "w417_quadratic"],
 )
 def test_fix_round_trip(service, code):
     src = source(service)
