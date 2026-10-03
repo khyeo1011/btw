@@ -15,16 +15,11 @@ permissions:
 
 jobs:
   test:
-    name: pytest (Python ${{ matrix.python-version }})
+    name: pytest
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # pyproject.toml: requires-python = ">=3.12"
-        python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -34,7 +29,8 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
-          python-version: ${{ matrix.python-version }}
+          # The oldest version pyproject.toml supports (requires-python >=3.12).
+          python-version: "3.12"
 
       # `btw build` links with gcc (which calls GNU as). The golden runner
       # skips the native step when gcc is missing, so fail loudly instead.
@@ -54,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
