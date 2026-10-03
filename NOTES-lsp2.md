@@ -137,3 +137,68 @@ plugin or a newer Neovim reads.
 
    Line 4 column 17 is the first `x`; line 2 column 16 is the constant
    `LIMIT`.
+
+## 3. Semantic tokens
+
+- **Legend**, in this order (the order is the token type index):
+  `keyword, variable, function, parameter, number, string, comment,
+  operator`, and one modifier, `readonly`. Only `full` is offered: no delta
+  and no range requests, since every change rechecks the whole file anyway.
+- **What each token gets.** The spec gives only the legend, so:
+
+  | Source                                                     | Type        |
+  | ---------------------------------------------------------- | ----------- |
+  | every keyword token, `LGTM`, `404`, `localhost:3000`, `:wq` | keyword     |
+  | `console.log`                                              | function (like `support.function` in the TextMate grammar and `Function` in `syntax/btw.vim`) |
+  | a microservice name, at its declaration and at calls       | function    |
+  | a parameter                                                | parameter   |
+  | a local or global variable                                 | variable    |
+  | a constant (`npm install -g`)                              | variable + readonly |
+  | a name the checker couldn't resolve (E404)                 | variable    |
+  | `O` and `log` inside a Big O annotation                    | function    |
+  | any other name inside a Big O annotation (its size variable) | parameter |
+  | other numbers                                              | number      |
+  | strings (quotes included)                                  | string      |
+  | comments, every kind                                       | comment     |
+  | operators, `=` and `\|` included                           | operator    |
+
+  Punctuation, newlines and ERROR tokens get nothing.
+- **Names** come from the checked AST, like hover: every Ident and Var the
+  checker gave a symbol, matched to the IDENT token by span. So a name keeps
+  its kind even when the file has errors elsewhere.
+- **Encoding.** Positions and lengths are converted to the negotiated
+  position encoding, like diagnostics (Neovim negotiates UTF-8). A token
+  that spans lines would be left out, but nothing in btw does.
+
+### Verified in Neovim
+
+Started without `editors/nvim` on the runtimepath, so `syntax/btw.vim`
+can't load: only `luafile editors/nvim/btw.lua` (filetype detection and the
+LSP config). `:lua print(vim.bo.filetype, vim.b.current_syntax,
+#vim.api.nvim_get_runtime_file("syntax/btw.vim", true))` prints `btw nil 0`.
+
+The file was the program from `test_semantic_tokens`. A Lua script walked
+every character with `vim.lsp.semantic_tokens.get_at_pos` and wrote each
+token Neovim applied, with the group `@lsp.type.TYPE` links to. Excerpt:
+
+```
+2:1 npm install -g     keyword              -> @keyword
+2:16 LIMIT              variable   readonly  -> @variable
+3:14 total              function             -> @function
+3:20 n                  parameter            -> @variable.parameter
+3:23 O                  function             -> @function
+4:21 // TODO faster     comment              -> @comment
+9:15 "sum"              string               -> @string
+10:15 total              function             -> @function
+11:23 404                keyword              -> @keyword
+11:41 nope               variable             -> @variable
+13:1 :wq                keyword              -> @keyword
+```
+
+All 42 tokens matched the test's expectation. On screen with
+`termguicolors` (the default colorscheme), keywords are bold, `total`, `O`
+and `console.log` cyan, `"sum"` green and the TODO comment grey; without
+`termguicolors` in tmux's 16 colors the comment stays uncolored because the
+default scheme's `Comment` only sets a GUI color, which is a colorscheme
+matter, not the server's. `vim.inspect_pos(0, 3, 22)` names the comment's
+group `@lsp.type.comment.btw`.

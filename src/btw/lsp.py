@@ -2,7 +2,8 @@
 
 Diagnostics come from `driver.check` (lex, parse, check, Big O, suppression;
 never codegen) on every didOpen, didChange and didSave. Hover text lives in
-`hovers.py`. Code actions turn the diagnostics' quick fixes into edits. stdout is the protocol channel, so `main` points `sys.stdout` at
+`hovers.py`. Code actions turn the diagnostics' quick fixes into edits, and
+semantic tokens give editors highlighting without a syntax file. stdout is the protocol channel, so `main` points `sys.stdout` at
 stderr before serving: a stray print can't corrupt the stream.
 """
 
@@ -11,15 +12,18 @@ from __future__ import annotations
 import functools
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from dataclasses import fields
 from typing import Any
 
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
-from btw import driver, hovers
+from btw import ast, driver, hovers
+from btw.checker import Symbol, SymbolKind
 from btw.diagnostics import Diagnostic, Severity
 from btw.span import Pos, Span
+from btw.tokens import TokenKind as K
 
 log = logging.getLogger("btw.lsp")
 
@@ -213,6 +217,113 @@ def code_action(ls: LanguageServer, params: types.CodeActionParams) -> list[type
                 )
             )
     return actions
+
+
+# Semantic tokens (P2): highlighting without a syntax file
+
+TOKEN_TYPES = ["keyword", "variable", "function", "parameter", "number", "string", "comment", "operator"]
+TOKEN_MODIFIERS = ["readonly"]
+LEGEND = types.SemanticTokensLegend(token_types=TOKEN_TYPES, token_modifiers=TOKEN_MODIFIERS)
+
+KEYWORD_KINDS = {
+    K.ARCH, K.SERVE, K.LOCALHOST, K.WQ, K.NPM_INSTALL_G, K.NPM_INSTALL, K.SUDO,
+    K.GIT_PUSH_FORCE, K.GIT_PUSH_NO_FORCE, K.GIT_REVERT, K.GIT_LOG, K.VIBE_CHECK,
+    K.SKILL_ISSUE, K.DOOMSCROLL, K.TOUCH_GRASS, K.MICROSERVICE, K.SHIP_IT, K.LGTM,
+    K.NOT_FOUND,
+}  # every keyword but console.log, which is a function like in the TextMate grammar
+OPERATOR_KINDS = {
+    K.PLUS, K.MINUS, K.STAR, K.SLASH, K.PERCENT, K.EQ_EQ, K.BANG_EQ, K.LT, K.LE,
+    K.GT, K.GE, K.AND_AND, K.OR_OR, K.BANG, K.EQ, K.PIPE, K.CARET,
+}
+SYMBOL_TYPES = {
+    SymbolKind.LOCAL: "variable",
+    SymbolKind.GLOBAL: "variable",
+    SymbolKind.CONST: "variable",
+    SymbolKind.PARAM: "parameter",
+    SymbolKind.MICROSERVICE: "function",
+}
+BIG_O_FUNCTIONS = {"O", "log"}
+
+
+def names(node: object) -> Iterator[ast.Ident | ast.Var]:
+    """Every Ident and Var in the tree below `node`."""
+    if isinstance(node, list):
+        for child in node:
+            yield from names(child)
+    elif isinstance(node, ast.Ident | ast.Var):
+        yield node
+    elif isinstance(node, ast.Node):
+        for f in fields(node):
+            if f.name not in ("span", "sym", "ty", "comments"):
+                yield from names(getattr(node, f.name))
+
+
+def classify(source: str) -> list[tuple[Span, str, bool]]:
+    """(span, token type, readonly) for everything worth highlighting, in order.
+
+    Keywords, numbers, strings, operators and comments come from the lexer.
+    Names take their symbol's kind from the checked AST: a constant is a
+    readonly variable, and a name the checker couldn't resolve is a plain
+    variable. Inside a Big O annotation, `O` and `log` are functions and the
+    size variable is a parameter.
+    """
+    tokens, comments, _ = driver.lex(source)
+    program, _, _ = driver.check(source, "")
+    symbols: dict[Span, Symbol] = {
+        node.span: node.sym for node in names(program) if isinstance(node.sym, Symbol)
+    }
+    annotations = [
+        item.big_o.span
+        for item in program.items
+        if isinstance(item, ast.Microservice) and item.big_o is not None
+    ]
+    found: list[tuple[Span, str, bool]] = [(c.span, "comment", False) for c in comments]
+    for token in tokens:
+        match token.kind:
+            case K.CONSOLE_LOG:
+                found.append((token.span, "function", False))
+            case kind if kind in KEYWORD_KINDS:
+                found.append((token.span, "keyword", False))
+            case kind if kind in OPERATOR_KINDS:
+                found.append((token.span, "operator", False))
+            case K.INT:
+                found.append((token.span, "number", False))
+            case K.STRING:
+                found.append((token.span, "string", False))
+            case K.IDENT if any(a.contains(token.span.start) for a in annotations):
+                kind = "function" if token.text in BIG_O_FUNCTIONS else "parameter"
+                found.append((token.span, kind, False))
+            case K.IDENT:
+                sym = symbols.get(token.span)
+                if sym is None:
+                    found.append((token.span, "variable", False))
+                else:
+                    found.append((token.span, SYMBOL_TYPES[sym.kind], sym.kind is SymbolKind.CONST))
+    return sorted(found, key=lambda entry: entry[0].start)
+
+
+def encode(lines: list[str], classified: list[tuple[Span, str, bool]], encoding: str) -> list[int]:
+    """The LSP's relative five-integer encoding. Tokens can't span lines, so
+    one that does (nothing in btw should) is left out."""
+    data: list[int] = []
+    previous = types.Position(line=0, character=0)
+    for span, kind, readonly in classified:
+        if span.start.line != span.end.line or span.start == span.end:
+            continue
+        start, end = to_client(lines, span.start, encoding), to_client(lines, span.end, encoding)
+        delta_line = start.line - previous.line
+        delta_start = start.character - (previous.character if delta_line == 0 else 0)
+        data += [delta_line, delta_start, end.character - start.character,
+                 TOKEN_TYPES.index(kind), int(readonly)]
+        previous = start
+    return data
+
+
+@server.feature(types.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL, LEGEND)
+@guarded
+def semantic_tokens(ls: LanguageServer, params: types.SemanticTokensParams) -> types.SemanticTokens:
+    source = ls.workspace.get_text_document(params.text_document.uri).source
+    return types.SemanticTokens(data=encode(source_lines(source), classify(source), encoding(ls)))
 
 
 # Hover

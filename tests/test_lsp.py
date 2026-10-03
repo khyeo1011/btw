@@ -92,7 +92,8 @@ def client():
             "capabilities": {"general": {"positionEncodings": ["utf-16"]}},
         },
     )
-    assert reply["result"]["capabilities"]["hoverProvider"]
+    c.capabilities = reply["result"]["capabilities"]
+    assert c.capabilities["hoverProvider"]
     c.notify("initialized", {})
     yield c
     if c.proc.poll() is None:
@@ -339,3 +340,136 @@ def test_e409_related_kinds(client, items, expected):
     open_doc(client, uri, f"i use arch btw\n{items}serve localhost:3000 {{\n}}\n:wq\n")
     e409s = [d for d in client.diagnostics(uri) if d["code"] == "E409"]
     assert [related(d) for d in e409s] == [[expected]]
+
+
+# Semantic tokens (P2): the legend of Implementation Spec 11
+
+
+def decode(data: list[int], legend: dict) -> list[tuple[int, int, int, str, list[str]]]:
+    """(line, character, length, type, modifiers) from the relative encoding."""
+    tokens, line, character = [], 0, 0
+    for i in range(0, len(data), 5):
+        delta_line, delta_start, length, kind, modifiers = data[i : i + 5]
+        line += delta_line
+        character = character + delta_start if delta_line == 0 else delta_start
+        names = [m for bit, m in enumerate(legend["tokenModifiers"]) if modifiers & (1 << bit)]
+        tokens.append((line, character, length, legend["tokenTypes"][kind], names))
+    return tokens
+
+
+SEMANTIC = """\
+i use arch btw
+npm install -g LIMIT = 3
+microservice total(n) O(n) {
+  npm install i = 0 // TODO faster
+  doomscroll i < n { git push --force i = i + 1 }
+  ship it i
+}
+serve localhost:3000 {
+  console.log "sum"
+  console.log total(LIMIT)
+  vibe check LGTM && !404 { console.log nope }
+}
+:wq
+"""
+
+
+def semantic(client: Client, uri: str, source: str) -> list[tuple[str, str, list[str]]]:
+    """(text, type, modifiers) for each semantic token of an ASCII document."""
+    provider = client.capabilities["semanticTokensProvider"]
+    assert provider["full"]
+    open_doc(client, uri, source)
+    client.diagnostics(uri)
+    reply = client.request("textDocument/semanticTokens/full", {"textDocument": {"uri": uri}})
+    lines = source.split("\n")
+    return [
+        (lines[line][char : char + length], kind, modifiers)
+        for line, char, length, kind, modifiers in decode(reply["result"]["data"], provider["legend"])
+    ]
+
+
+def test_semantic_tokens_legend(client):
+    assert client.capabilities["semanticTokensProvider"]["legend"] == {
+        "tokenTypes": [
+            "keyword", "variable", "function", "parameter", "number", "string", "comment", "operator"
+        ],
+        "tokenModifiers": ["readonly"],
+    }
+
+
+def test_semantic_tokens(client):
+    tokens = semantic(client, "file:///semantic.btw", SEMANTIC)
+    assert tokens == [
+        ("i use arch btw", "keyword", []),
+        ("npm install -g", "keyword", []),
+        ("LIMIT", "variable", ["readonly"]),
+        ("=", "operator", []),
+        ("3", "number", []),
+        ("microservice", "keyword", []),
+        ("total", "function", []),
+        ("n", "parameter", []),
+        ("O", "function", []),
+        ("n", "parameter", []),
+        ("npm install", "keyword", []),
+        ("i", "variable", []),
+        ("=", "operator", []),
+        ("0", "number", []),
+        ("// TODO faster", "comment", []),
+        ("doomscroll", "keyword", []),
+        ("i", "variable", []),
+        ("<", "operator", []),
+        ("n", "parameter", []),
+        ("git push --force", "keyword", []),
+        ("i", "variable", []),
+        ("=", "operator", []),
+        ("i", "variable", []),
+        ("+", "operator", []),
+        ("1", "number", []),
+        ("ship it", "keyword", []),
+        ("i", "variable", []),
+        ("serve", "keyword", []),
+        ("localhost:3000", "keyword", []),
+        ("console.log", "function", []),
+        ('"sum"', "string", []),
+        ("console.log", "function", []),
+        ("total", "function", []),
+        ("LIMIT", "variable", ["readonly"]),
+        ("vibe check", "keyword", []),
+        ("LGTM", "keyword", []),
+        ("&&", "operator", []),
+        ("!", "operator", []),
+        ("404", "keyword", []),
+        ("console.log", "function", []),
+        ("nope", "variable", []),
+        (":wq", "keyword", []),
+    ]
+
+
+def test_semantic_tokens_in_a_broken_program(client):
+    """Unresolved names are plain variables, ERROR tokens and punctuation are
+    left out, and an unverifiable annotation still highlights."""
+    source = "microservice f(n) O(log n) {\n ship it x @ 1\n}\n"
+    assert semantic(client, "file:///broken.btw", source) == [
+        ("microservice", "keyword", []),
+        ("f", "function", []),
+        ("n", "parameter", []),
+        ("O", "function", []),
+        ("log", "function", []),
+        ("n", "parameter", []),
+        ("ship it", "keyword", []),
+        ("x", "variable", []),
+        ("1", "number", []),
+    ]
+
+
+def test_semantic_tokens_use_the_negotiated_encoding():
+    source = 'console.log "é😀" // TODO 🚀\n'
+    lines = lsp.source_lines(source)
+    data = lsp.encode(lines, lsp.classify(source), "utf-8")
+    assert data == [
+        0, 0, 11, 2, 0,  # console.log
+        0, 12, 8, 5, 0,  # the string: quotes, 2 bytes for é and 4 for the emoji
+        0, 9, 12, 6, 0,  # the comment
+    ]
+    utf16 = lsp.encode(lines, lsp.classify(source), "utf-16")
+    assert utf16[5:] == [0, 12, 5, 5, 0, 0, 6, 10, 6, 0]
