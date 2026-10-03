@@ -68,10 +68,8 @@ cost the callee's degree, mutual recursion) in one implementation.
 
 ## Other cards
 
-- `p2_w200_two_problems` reports a W102 until `suppress.py` lands: it's the
-  only golden whose Big O lines don't match yet, and it's a strict xfail in
-  `tests/test_bigo.py` (`WAITING`). Remove it from there when suppression
-  lands.
-- Checker card: `tests/test_checker.py` filters the Big O codes out through
-  `OTHER_CARDS`, so this card causes no unexpected passes there. Those codes
-  can come out of `OTHER_CARDS` now.
+- Suppression (`suppress.py`) removes the W102 in `p2_w200_two_problems`,
+  so the Big O lines of every golden match and `tests/test_bigo.py` has no
+  xfails left.
+- Checker card: `tests/test_checker.py` compares the Big O codes too; they
+  are no longer in its `OTHER_CARDS`.
