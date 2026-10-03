@@ -11,6 +11,14 @@ GOLDEN = Path(__file__).parent / "golden"
 TIMEOUT = 5
 RUN_SIDECARS = (".out", ".err", ".exit")
 
+# Goldens whose diagnostics can't match until another card lands. Step 1 is an
+# expected failure while it differs, and a hard failure once it matches, so
+# the entry gets removed as soon as the other card is done.
+WAITING = {
+    "p2_pipes": "pipes (parser card)",
+    "p2_e405_pipe_console_log_value": "pipes (parser card)",
+}
+
 
 def tier(program: Path) -> int:
     return int(program.name[1])
@@ -76,6 +84,10 @@ def test_golden(program: Path, request, tmp_path: Path):
     want = expected(program, ".diag")
     if blessing:
         bless(program, ".diag", diagnostics)
+    elif program.stem in WAITING:
+        if diagnostics != want:
+            pytest.xfail(f"waiting on {WAITING[program.stem]}")
+        pytest.fail(f"{program.stem} matches now: remove it from WAITING")
     else:
         assert diagnostics == want
     has_error = any(": error[" in line for line in want.splitlines())

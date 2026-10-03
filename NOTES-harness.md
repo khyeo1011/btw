@@ -52,6 +52,12 @@ decided where that spec is silent, the golden test list, and open questions.
   2, showing btw's stderr. Native step: xfail ("native: not yet") for E501 and
   while the backend isn't implemented; skip when gcc isn't installed. `--bless`
   rewrites `.diag`, `.out`, `.err` and `.exit` (steps 1 and 3 only).
+- **`WAITING` goldens.** `tests/test_golden.py` lists goldens whose
+  diagnostics can't match until another card lands (now: `p2_pipes` and
+  `p2_e405_pipe_console_log_value`, waiting on the parser for pipes). Step 1
+  is an xfail while the diagnostics differ, and a hard failure ("matches
+  now: remove it from WAITING") once they match, so CI goes red the moment
+  an entry is stale. The card that makes one match removes its entry.
 - **Duplicate diagnostics** (same code and span): the first one reported is
   kept, and the driver collects lexer, parser, checker, Big O diagnostics in
   that order. This settles which E400 survives for an unexpected character.

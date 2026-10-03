@@ -70,6 +70,9 @@ Files: `src/btw/interp.py`, `tests/test_interp.py`. Specs: Language Spec 5,
   `p2_e405_pipe_console_log_value` fails at the same step for the same
   reason and has no run sidecars. `tests/test_checker.py` lists both under
   `WAITING` for the parser card. Neither failure is in the interpreter.
+  `tests/test_golden.py` now has the same `WAITING` list, so both are xfails
+  and CI is green. Once pipes parse, both fail with "matches now: remove it
+  from WAITING", and the parser card deletes the two entries.
 - Every native step is xfailed ("native: not yet") until the codegen card
   lands.
 
