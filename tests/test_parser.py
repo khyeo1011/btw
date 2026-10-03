@@ -4,7 +4,8 @@ import pytest
 
 from btw import ast
 from btw.lexer import lex
-from btw.parser import format_ast, parse
+from btw.diagnostics import Diagnostic, Severity
+from btw.parser import W208, format_ast, parse
 from btw.span import Pos, Span
 from btw.tokens import Token, TokenKind as K
 
@@ -127,10 +128,26 @@ def test_leading_newlines_before_arch():
     assert program.has_arch and diags == []
 
 
-def test_repeated_arch_line_is_not_a_syntax_error():
-    program, _, diags = parse_src("i use arch btw\ni use arch btw\n" + wrap("i use arch btw"))
-    assert program.has_arch and diags == []
+def test_repeated_arch_line_is_w208_on_each_repeat():
+    program, _, diags = parse_src("i use arch btw\ni use arch btw\n" + wrap("  i use   arch btw"))
+    assert program.has_arch
     assert program.items[0].body.stmts == []
+    assert diags == [
+        Diagnostic("W208", Severity.WARNING, W208, sp(2, 1, 2, 15), soft=True),
+        Diagnostic("W208", Severity.WARNING, W208, sp(3, 1, 3, 15), soft=True),
+        Diagnostic("W208", Severity.WARNING, W208, sp(5, 3, 5, 19), soft=True),
+    ]
+
+
+def test_one_misplaced_arch_line_is_not_a_repeat():
+    # Not first, so has_arch is false (E426, the checker's), but not a second one either.
+    program, _, diags = parse_src("serve localhost:3000 { }\ni use arch btw\n:wq\n")
+    assert not program.has_arch and diags == []
+
+
+def test_arch_line_after_wq_is_only_trailing():
+    program, _, diags = parse_src(wrap("") + "i use arch btw\n")
+    assert diags == [] and program.trailing_span == sp(6, 1, 7, 1)
 
 
 def test_trailing_tokens_are_recorded_not_reported():
@@ -336,7 +353,10 @@ def test_unclosed_big_o():
     program, _, diags = parse_src("i use arch btw\nmicroservice f(n) O(n { }\n:wq\n")
     m = program.items[0]
     assert m.big_o.degree is None and m.big_o.text == "n"
-    assert [d.message for d in diags] == ["Syntax error: expected `)`, found `{`."]
+    assert [d.message for d in diags] == [
+        "Syntax error: expected `)`, found `{`.",
+        "Syntax error: expected `)`, found `:wq`.",
+    ]
 
 
 # Expressions and precedence
@@ -539,9 +559,39 @@ def test_dangling_skill_issue():
     ]
 
 
-def test_unclosed_paren():
+def test_unclosed_paren_is_reported_again_at_wq():
     src = wrap("console.log (1 + 2")
-    assert [e[3] for e in errors(src)] == ["Syntax error: expected `)`, found `}`."]
+    assert errors(src) == [
+        (4, 1, "E400", "Syntax error: expected `)`, found `}`."),
+        (5, 1, "E400", "Syntax error: expected `)`, found `:wq`."),
+    ]
+
+
+def test_unclosed_paren_at_end_of_file_replaces_missing_brace():
+    src = "i use arch btw\nserve localhost:3000 {\n  vibe check (x {\n    console.log 1\n"
+    assert errors(src) == [
+        (3, 17, "E400", "Syntax error: expected `)`, found `{`."),
+        (5, 1, "E400", "Syntax error: expected `)`, found end of file."),
+        (4, 17, "E408", "Error: program never exited. Classic Vim user."),
+    ]
+
+
+def test_unclosed_paren_ignores_extra_closing_parens():
+    # `)` with nothing open doesn't count, just as in the lexer: the `(` stays open.
+    src = wrap("console.log 1 ) (")
+    assert [e[3] for e in errors(src)] == [
+        "Syntax error: expected end of line, found `)`.",
+        "Syntax error: expected `)`, found `:wq`.",
+    ]
+
+
+def test_closed_parens_are_not_reported():
+    assert errors(wrap("console.log f((1), (2 + (3)))")) == []
+
+
+def test_unclosed_paren_after_wq_is_only_trailing():
+    program, _, diags = parse_src(wrap("") + "(\n")
+    assert diags == [] and program.trailing_span is not None
 
 
 def test_bad_params_recover_to_the_body():
@@ -705,16 +755,16 @@ def golden_programs():
 
 @pytest.mark.parametrize("program", golden_programs())
 def test_golden_syntax_errors(program):
-    """Every golden program parses, with exactly the E400s and E408 its .diag lists."""
+    """Every golden program parses, with exactly the E400, E408 and W208 its .diag lists."""
     _, lex_diags, diags = parse_src(program.read_text())
     seen = set()
     got = []
     for d in [*lex_diags, *diags]:  # the driver keeps the first of exact duplicates
-        if d.code in ("E400", "E408", "E500") and (d.code, d.span) not in seen:
+        if d.code in ("E400", "E408", "E500", "W208") and (d.code, d.span) not in seen:
             seen.add((d.code, d.span))
             pos = f"{d.span.start.line + 1}:{d.span.start.col + 1}"
-            got.append(f"{pos}: error[{d.code}]: {d.message}")
+            got.append(f"{pos}: {d.severity.value}[{d.code}]: {d.message}")
     sidecar = program.with_suffix(".diag")
     lines = sidecar.read_text().splitlines() if sidecar.exists() else []
-    want = [line for line in lines if "error[E400]" in line or "error[E408]" in line]
+    want = [line for line in lines if any(f"[{c}]" in line for c in ("E400", "E408", "W208"))]
     assert sorted(got) == sorted(want)

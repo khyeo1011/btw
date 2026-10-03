@@ -17,7 +17,7 @@ and 6.
   `btw parse` prints it now, the same way `btw tokens` prints
   `lexer.format_tokens`. `cli.dump` is unused but stays, because
   `tests/test_driver.py` tests it. The harness owner can delete both.
-- The parser builds only the `ast.py` classes and reports only E400, E408
+- The parser builds only the `ast.py` classes and reports E400, E408, W208
   and E500.
 
 ## How it works
@@ -34,6 +34,24 @@ and 6.
   `git push` already has the lexer's E400, so the parser marks the statement
   as errored without reporting anything. `git push x = 2` still becomes an
   Assign.
+- **W208** (decided by the project owner): the parser reports it, like
+  E408, because `Program` has no field for repeated arch lines. Every
+  `i use arch btw` token after the first one in the file gets W208 on its
+  own span, at top level or inside a block, as a soft warning. A single arch
+  line that isn't first gets nothing from the parser: `has_arch` is false
+  and the checker reports E426. An arch line after `:wq` is only part of the
+  trailing span (E410). Implementation Spec 7 still lists W208 in the
+  checker's structure pass, so the checker card must not report it again.
+- **Unclosed `(`** (decided by the project owner): when the program ends
+  (at `:wq`, or at the end of the file without one) with a `(` still open,
+  the parser reports "Syntax error: expected `)`, found `:wq`." (or "found
+  end of file.") on that token. It counts parens the way the lexer does: a
+  `)` with nothing open is ignored. This report is file-level, so it sits
+  outside the one-E400-per-statement budget and replaces any other E400 on
+  the same token, such as the outermost block's missing `}`. The lexer drops
+  every newline after an unclosed `(`, so this names the real cause even
+  when the parser already reported something along the way (usually
+  "expected `)`, found `}`"). A `(` after `:wq` is only trailing (E410).
 - **Spans:** a statement runs from its first token (including `sudo`) to the
   last token it consumed. A binary expression starts at the first token of
   its left operand, so `(1 + 2) * 3` starts at the `(` while the grouped
@@ -101,25 +119,16 @@ top of that:
 - **Bad parameter lists** skip to their `)`, so the Big O annotation and the
   body still parse.
 - **A missing `}` at the end of the file** gets the E400 once, from the
-  innermost block. Every outer block closes silently.
+  innermost block. Every outer block closes silently. An unclosed `(` takes
+  that token's E400 instead.
 
 ## Questions
 
-1. **W208 has no AST field.** Language Spec 4 makes a repeated
-   `i use arch btw` W208, and Implementation Spec 7 puts W208 in the
-   checker's structure pass. But `Program` only records `has_arch`, so the
-   checker can't find the repeat (`p2_w208_repeated_arch`). The parser skips
-   repeated arch lines silently, at top level and inside blocks. Options:
-   the parser reports W208 itself, as it does E408 (Language Spec 4 gives
-   E408 that exception because only the parser knows the last token, and the
-   same reasoning applies here), or `ast.py` gains a field. Both need the
-   project owner, since `ast.py` is a contract file and the spec names the
-   checker.
-2. **Unclosed `(` hides every later newline** (NOTES-lexer decision 5). After
-   `console.log (1 + 2`, the rest of the file is one line to the parser, so
-   it reports "expected `)`, found `}`" and keeps going from that `}`. The
-   parser can't put back newlines the lexer dropped. The lexer could reset
-   its paren depth at `{` and `}`, but the spec doesn't say so.
+1. **Resolved: W208** is reported by the parser (see "How it works").
+2. **Resolved: unclosed `(`.** The parser now reports it when the program
+   ends (see "How it works"). The lexer still drops every newline after the
+   `(` (NOTES-lexer decision 5), so the statements in between still parse as
+   one line.
 3. **Other lexer E400s** (unterminated string, bad escape, leading zeros)
    don't count as the statement's E400, because the parser only sees a
    normal token. A statement can then end up with a lexer E400 and a parser
@@ -139,9 +148,9 @@ expression.
 
 ## Status
 
-- `uv run pytest tests/test_parser.py`: 206 pass, plus the 2 pipe xfails.
+- `uv run pytest tests/test_parser.py`: 212 pass, plus the 2 pipe xfails.
   The tests cover every case on the card, and for every
   `tests/golden/*.btw` they check that the lexer and parser together give
-  exactly the E400 and E408 lines in its `.diag`.
+  exactly the E400, E408 and W208 lines in its `.diag`.
 - `tests/test_golden.py` still fails everywhere with "checker is not
   implemented yet".

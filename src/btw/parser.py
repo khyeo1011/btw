@@ -1,6 +1,8 @@
 """The parser (Implementation Spec 6, Language Spec 3 and 4).
 
 `parse(tokens, comments)` returns `(program, diagnostics)` and never raises.
+Besides E400 it reports the two things only it can see in the token stream:
+E408 for a missing `:wq` and W208 for a repeated arch line.
 Recursive descent for items and statements, Pratt parsing for expressions.
 
 Recovery follows matklad's "Resilient LL Parsing": every statement and item
@@ -81,6 +83,7 @@ PREFIX_LEVEL = 8
 CHAINED = "Chained comparisons aren't a thing here. This isn't Python."
 SUDO_MISUSE = "`sudo` only works with `git push --force` and `git revert`."
 E408 = "Error: program never exited. Classic Vim user."
+W208 = "208 Already Reported: we know you use Arch."
 E500 = "It works on my machine. Unfortunately, this is not my machine."
 
 
@@ -111,6 +114,7 @@ class _Parser:
         self.diags: list[Diagnostic] = []
         self.items: list[ast.Item] = []
         self.has_arch = False
+        self.seen_arch = False  # any arch line so far: every later one is W208
         self.errored = False  # the current statement or item already has its E400
         self.reported: set[Pos] = set()  # tokens that already carry a parser E400
         self.prev_end = tokens[0].span.start  # end of the last token consumed
@@ -176,7 +180,7 @@ class _Parser:
         self.skip_newlines()
         if self.at(K.ARCH):
             self.has_arch = True
-            self.advance()
+            self.arch_line()
         wq_span = trailing_span = None
         while True:
             self.skip_newlines()
@@ -184,6 +188,7 @@ class _Parser:
             if tok.kind is K.EOF:
                 break
             if tok.kind is K.WQ:
+                self.unclosed_paren()
                 self.advance()
                 wq_span = tok.span
                 trailing_span = self.trailing()
@@ -195,8 +200,40 @@ class _Parser:
             if self.i == start:
                 self.advance()  # never loop without progress
         if wq_span is None:
+            self.unclosed_paren()
             self.missing_wq()
         return self.finish(comments, wq_span, trailing_span)
+
+    def arch_line(self) -> None:
+        """Consume an arch line. Every one after the first is W208 (Language Spec 4)."""
+        tok = self.advance()
+        if self.seen_arch:
+            self.diags.append(Diagnostic("W208", Severity.WARNING, W208, tok.span, soft=True))
+        self.seen_arch = True
+
+    def unclosed_paren(self) -> None:
+        """E400 on the token that ends the program (`:wq` or the end of file) when a `(`
+        is still open there.
+
+        The lexer drops every newline after an unclosed `(`, so whatever the parser
+        reported along the way, this names the cause. It takes the place of any other
+        E400 on the same token, such as the outermost block's missing `}`.
+        """
+        depth = 0
+        for tok in self.toks[: self.i]:
+            if tok.kind is K.LPAREN:
+                depth += 1
+            elif tok.kind is K.RPAREN:
+                depth = max(0, depth - 1)  # the same count the lexer keeps
+        if depth == 0:
+            return
+        end = self.peek()
+        message = f"Syntax error: expected `)`, found {found(end)}."
+        self.diags = [
+            d for d in self.diags if not (d.code == "E400" and d.span.start == end.span.start)
+        ]
+        self.diags.append(Diagnostic("E400", Severity.ERROR, message, end.span))
+        self.reported.add(end.span.start)
 
     def finish(
         self, comments: list[Comment], wq_span: Span | None, trailing_span: Span | None
@@ -238,7 +275,7 @@ class _Parser:
             case K.SERVE:
                 node = self.serve()
             case K.ARCH:
-                self.advance()  # a repeated arch line is W208, the checker's job
+                self.arch_line()
             case kind if kind in STATEMENT_ONLY:
                 self.error(
                     f"Syntax error: `{SPELLING[kind]}` outside a `microservice` or `serve`. "
@@ -443,7 +480,7 @@ class _Parser:
                 value = self.expr()
                 return ast.Print(value, span=self.span_from(start))
             case K.ARCH:
-                self.advance()  # a repeated arch line is W208, the checker's job
+                self.arch_line()
                 return None
             case kind if kind in EXPR_START:
                 expr = self.expr()
