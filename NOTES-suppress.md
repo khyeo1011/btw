@@ -61,5 +61,3 @@ below until someone rules on them. Each has a test in `tests/test_suppress.py`.
   assignment really assigns", belongs to `interp.py` (and the codegen):
   suppression only removes diagnostics and never changes the AST, so a
   suppressed `git push --force LIMIT = 11` must still assign at run time.
-- `tests/test_checker.py` still filters W200 and W304 out through
-  `OTHER_CARDS`; now that this card has landed they could come out too.
