@@ -277,3 +277,21 @@ covers a pipe there as well.
 The program from `test_pipe_head_hovers`. `K` on the `x` of
 `x | f | g(y) | console.log` and on the `x` of `console.log x + 1 | f` both
 open `npm install x · number · declared on line 5`.
+
+## Test suite
+
+`uv run pytest -q` on the final commit (after merging `main` with pipes):
+
+```
+1157 passed in 45.16s
+```
+
+No xfails or skips are left: merging `main` brought in the pipes parser, so
+the WAITING goldens now match. `tests/test_lsp.py` and
+`tests/test_hovers.py` alone: 44 passed.
+
+## Branch
+
+The session assigned `claude/quirky-hamilton-k2xigx`, not a `feature/NAME`
+branch as CLAUDE.md asks. `main` was brought in with a merge, and nothing
+was merged into `main`.
