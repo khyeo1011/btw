@@ -32,8 +32,46 @@ def format_pretty(diagnostic: Diagnostic, path: str, source: str, color: bool) -
     contains no escape codes; with color=True, stripping the escape codes must
     give exactly the color=False result.
     """
-    # TODO(human): H1 — render header, --> line, gutter, source line, carets and help line.
-    raise NotImplementedError("pretty diagnostics are not implemented yet")
+
+    def paint(text: str, style: str) -> str:
+        return f"{style}{text}{RESET}" if color else text
+
+    start, end = diagnostic.span.start, diagnostic.span.end
+    tone = YELLOW if diagnostic.severity is Severity.WARNING else RED
+    lines = source.split("\n")
+    text = lines[start.line].removesuffix("\r") if start.line < len(lines) else ""
+    number = str(start.line + 1)
+    gutter = " " * (len(number) + 1)
+    bar = paint("|", BLUE)
+
+    first = _char_index(text, start.col)
+    last = _char_index(text, end.col) if end.line == start.line else len(text)
+    pad = "".join("\t" if ch == "\t" else " " for ch in text[:first])
+    pad += " " * (first - len(text[:first]))
+    carets = paint("^" * max(1, last - first), tone)
+
+    block = [
+        paint(f"{severity_label(diagnostic)}[{diagnostic.code}]", tone)
+        + paint(f": {diagnostic.message}", BOLD),
+        f"{gutter}{paint('-->', BLUE)} {path}:{number}:{start.col + 1}",
+        f"{gutter} {bar}",
+        f"{paint(' ' + number, BLUE)} {bar}" + (f" {text}" if text else ""),
+        f"{gutter} {bar} {pad}{carets}",
+    ]
+    if diagnostic.help:
+        block.append(f"{gutter} {paint('=', BLUE)} help: {diagnostic.help}")
+    return "\n".join(block)
+
+
+def _char_index(text: str, units: int) -> int:
+    """Turn a UTF-16 column into an index into `text`. Past the end of the
+    line, each further unit counts as one character."""
+    count = 0
+    for index, ch in enumerate(text):
+        if count >= units:
+            return index
+        count += 2 if ord(ch) > 0xFFFF else 1
+    return len(text) + max(0, units - count)
 
 
 def use_color() -> bool:
