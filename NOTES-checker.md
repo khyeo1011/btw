@@ -121,15 +121,14 @@ strict xfails, so each one will flip to a pass when its card lands.
   E405 "`console.log` returns nothing" can't come from the checker, because
   the desugared AST has no node for a pipeline used as a value. The parser
   should report it when it desugars the pipeline.
-- `p2_w200_works_on_my_machine`, `p2_w200_two_problems`: these need
-  `suppress.py` to remove the E403 and the W204.
 
 ## Status
 
 - Every `tests/golden/*.diag` matches `btw check --format short`, Big O
   codes included (`bigo.py` runs in the driver), ignoring the suppression
-  codes (W200, W304), except for the four files above.
-- `uv run pytest tests/test_checker.py`: 122 pass and 4 xfail. The tests
+  codes (W200, W304), except for the two files above. `suppress.py` runs in
+  the driver too, so the suppressed diagnostics are already gone.
+- `uv run pytest tests/test_checker.py`: 124 pass and 2 xfail. The tests
   include that golden comparison, plus unit tests for symbols and types and
   for every message and span the corpus doesn't cover.
 - `tests/test_golden.py` still fails for every program that runs, because

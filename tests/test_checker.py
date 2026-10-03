@@ -15,12 +15,10 @@ GOLDEN = Path(__file__).parent / "golden"
 OTHER_CARDS = {"W200", "W304"}
 
 # Goldens that can't match until another card lands: pipes are parsed by the
-# parser card, and the suppressed E403 and W204 need suppress.py.
+# parser card.
 WAITING = {
     "p2_pipes": "pipes (parser card)",
     "p2_e405_pipe_console_log_value": "pipes (parser card)",
-    "p2_w200_works_on_my_machine": "suppression (suppress.py)",
-    "p2_w200_two_problems": "suppression (suppress.py)",
 }
 
 

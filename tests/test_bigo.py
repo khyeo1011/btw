@@ -12,9 +12,6 @@ from btw.span import Pos, Span
 GOLDEN = Path(__file__).parent / "golden"
 BIG_O_CODES = {"E417", "W417", "W102", "W508", "W203"}
 
-# Goldens whose Big O lines need another card: suppression hides the W102.
-WAITING = {"p2_w200_two_problems": "suppression (suppress.py)"}
-
 
 def program(*services: str):
     src = "i use arch btw\n" + "\n".join(services) + "\nserve localhost:3000 {\n}\n:wq\n"
@@ -300,9 +297,7 @@ def test_duplicate_microservice_gets_its_own_verdict():
 
 
 @pytest.mark.parametrize("path", sorted(GOLDEN.glob("*.btw")), ids=lambda p: p.stem)
-def test_golden_big_o_lines(path, request):
-    if path.stem in WAITING:
-        request.applymarker(pytest.mark.xfail(reason=WAITING[path.stem], strict=True))
+def test_golden_big_o_lines(path):
     _, _, found = driver.check(path.read_text(encoding="utf-8"), str(path))
     got = [
         f"{d.span.start.line + 1}:{d.span.start.col + 1}: {d.severity.value}[{d.code}]: {d.message}"
