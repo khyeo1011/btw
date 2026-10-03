@@ -163,7 +163,9 @@ change.
 
 Ambiguities found while writing the tests. Golden tests avoid depending on an
 open question where they can. Where they can't (questions 4, 5, 7, 8, 9, 11
-and 14), the entry names the test and the assumption it makes.
+and 14), the entry names the test and the assumption it makes. Entries
+marked **Resolved** were settled by the project owner, and the Language Spec
+now says the same.
 
 1. **W508 "replaces the three rows above" (9.1).** Does it replace E417, W417
    and W102, or the k = d, E417 and W417 rows? Tests: recursive microservices
@@ -171,8 +173,10 @@ and 14), the entry names the test and the assumption it makes.
    annotation, so both readings give W508 alone.
 2. **Call cost in P0 vs P1 (9.1).** A call costs 0 in P0 and degFn in P1.
    Tests: no non-recursive microservice calls another one.
-3. **E400 "found WHAT" for identifiers, numbers and strings (11).** The format
-   isn't given. Tests: only symbols, keywords and end of line are "found".
+3. **E400 "found WHAT" for identifiers, numbers and strings (11).**
+   **Resolved:** found `foo`, whoever that is / found a magic number `42` /
+   found a hardcoded string (Language Spec 11, E400). Tests: only symbols,
+   keywords and end of line are "found".
 4. **E408 "the last token" (4, 11).** Does the final NEWLINE or EOF count?
    Every golden file ends with a newline, so this can't be avoided.
    `p0_e408_missing_wq` assumes the last real token (the `}` at 4:1).
@@ -184,25 +188,29 @@ and 14), the entry names the test and the assumption it makes.
    to report.
 7. **Span of the `sudo` misuse E400 (9.2).** `sudo` itself, or the token after
    it? `p0_e400_sudo_misuse` assumes the token after `sudo` (3:10), following
-   the catalog's E400 span "the unexpected token". Can't be avoided.
+   the catalog's E400 span "the unexpected token". **Resolved:** confirmed.
 8. **Unexpected character and the parser (2.6).** Does the lexer drop the
    character, or emit a token the parser also reports? `p0_e400_unexpected_char`
    puts `@` at the end of a complete statement and expects exactly one E400.
    Implementation Spec 5 says the lexer emits an ERROR token; if the parser
    also reports it at the same span, the driver keeps the lexer's message
    (see "Duplicate diagnostics" above).
-9. **Top-level statement message (4).** Section 4 gives it without the
-   "Syntax error: " prefix. `p0_e400_top_level_statement` assumes the generic
-   E400 form: "Syntax error: expected `microservice`, `serve` or
-   `npm install`, found `console.log`."
+9. **Top-level statement message (4).** **Resolved:** its own message,
+   "Syntax error: `console.log` outside a `microservice` or `serve`.
+   Serverless still needs a server." (Language Spec 4 and 11).
+   `p0_e400_top_level_statement` expects it.
 10. **E418 comparison message with a boolean on the left (11).** "can't compare
     a number with a boolean" might flip. Tests: the number is on the left.
 11. **E409 for a repeated parameter (8).** The catalog has no row for it.
     `p0_e409_duplicate_param` assumes the "already installed" message.
-12. **`ship it` of a boolean in `serve` (6).** E418, but which message? Not
-    tested.
-13. **`&&`, `||` with numbers and `<` with booleans (5, 11).** No message given.
+12. **`ship it` of a boolean in `serve` (6).** **Resolved:** "I'm a teapot:
+    exit codes are numbers, got a boolean. The OS doesn't do code review."
     Not tested.
+13. **`&&`, `||` with numbers and `<` with booleans (5, 11).** **Resolved:**
+    "I'm a teapot: `&&` needs booleans, got a number. Truthiness is a
+    JavaScript thing." and "I'm a teapot: can't sort booleans with `<`. LGTM
+    isn't bigger than 404, just more optimistic." (both sides booleans; a
+    number with a boolean keeps the compare message). Not tested.
 14. **History on variables in nested blocks of `serve` (9.3).**
     `p2_git_log_fresh_history` assumes a variable declared in a doomscroll
     inside `serve` counts as "declared in `serve`" (9.3 itself describes
@@ -223,6 +231,6 @@ and 14), the entry names the test and the assumption it makes.
     program may differ.
 19. **E417's help text (Implementation Spec 3).** E403 and E417 get a `help:`
     line. E403's text is in Language Spec 9.2 ("try `sudo git push --force X =
-    ...`"); E417's isn't given. Its quick fix title "Update SLA to O(n²)" is
-    the obvious candidate. The checker owns this, and golden tests use the
-    short format, which has no help line.
+    ...`"). **Resolved:** E417's is "try `O(n²)`, then tell the PM it was
+    always the plan" (Language Spec 9.1). Golden tests use the short format,
+    which has no help line.
