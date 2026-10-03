@@ -15,15 +15,12 @@ GOLDEN = Path(__file__).parent / "golden"
 OTHER_CARDS = {"E417", "W417", "W102", "W508", "W203", "W200", "W304"}
 
 # Goldens that can't match until another card lands: pipes are parsed by the
-# parser card, and the suppressed E403 needs suppress.py.
+# parser card, and the suppressed E403 and W204 need suppress.py.
 WAITING = {
     "p2_pipes": "pipes (parser card)",
     "p2_e405_pipe_console_log_value": "pipes (parser card)",
     "p2_w200_works_on_my_machine": "suppression (suppress.py)",
-    "p2_e405_history_on_local": "P2 history rules not done yet",
-    "p2_w100_unnecessary_sudo": "P2 W100 not done yet",
-    "p2_w204_expression_statement": "P2 W204 not done yet",
-    "p2_w410_unreachable": "P2 W410 not done yet",
+    "p2_w200_two_problems": "suppression (suppress.py)",
 }
 
 
@@ -369,3 +366,62 @@ def test_ast_node_types_are_filled_everywhere():
                     walk(value)
 
     walk(program)
+
+
+# P2: unnecessary sudo, useless expressions, unreachable code, history
+
+
+def test_w100():
+    src = wrap(
+        "npm install x = 1\nsudo git push --force x = 2\nsudo git revert x\n"
+        "sudo git push --force C = 2\nsudo git push --force ghost = 1",
+        top="npm install -g C = 1\n",
+    )
+    diags = run_check(src)[2]
+    assert [(d.code, d.span) for d in diags] == [
+        ("W100", Span(Pos(4, 0), Pos(4, 4))),
+        ("W100", Span(Pos(5, 0), Pos(5, 4))),
+        ("E404", Span(Pos(7, 22), Pos(7, 27))),
+    ]
+
+
+def test_e403_on_revert():
+    (d,) = run_check(wrap("git revert C", top="npm install -g C = 1\n"))[2]
+    assert d.code == "E403" and d.help == "try `sudo git revert C`"
+
+
+def test_w204():
+    src = wrap("npm install x = 1\nx\nx + 1\n(f(x))\nf(1) == 0", top="microservice f(n) {\n}\n")
+    assert [(d.code, d.span.start.line) for d in run_check(src)[2]] == [
+        ("W204", 5),
+        ("W204", 6),
+        ("W204", 8),
+    ]
+
+
+def test_w410_first_unreachable_statement_per_block():
+    src = wrap(
+        "vibe check LGTM {\n  ship it 1\n}\nship it 2\nconsole.log 1\nconsole.log 2",
+        top="microservice f() {\n  ship it\n  console.log 0\n}\n",
+    )
+    diags = run_check(src)[2]
+    assert [(d.code, d.span.start) for d in diags] == [
+        ("W410", Pos(3, 2)),
+        ("W410", Pos(10, 0)),
+    ]
+
+
+def test_history_targets():
+    src = wrap(
+        "npm install s = 1\ngit log s\ngit log G\nvibe check LGTM {\n  npm install b = 1\n"
+        "  git revert b\n}\nconsole.log f(1)",
+        top="npm install G = 1\nnpm install H = 1\n"
+        "microservice f(n) {\n  git log G\n  npm install t = n\n  git log t\n  git revert n\n}\n",
+    )
+    _, symbols, diags = run_check(src)
+    assert [(d.code, d.span) for d in diags] == [
+        ("E405", Span(Pos(6, 2), Pos(6, 11))),
+        ("E405", Span(Pos(7, 2), Pos(7, 14))),
+    ]
+    tracked = sorted(sym.name for sym in symbols.all if sym.tracked)
+    assert tracked == ["G", "b", "s"]

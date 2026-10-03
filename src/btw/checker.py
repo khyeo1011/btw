@@ -145,6 +145,13 @@ E418_EXIT = "I'm a teapot: exit codes are numbers, got a boolean. The OS doesn't
 E426 = "Fatal: `i use arch btw` not found. Are you on Windows?"
 E503 = "Error: no server running. Nothing is listening on localhost:3000."
 W509 = "Infinite doomscroll detected. Go touch grass."
+E405_HISTORY = (
+    "History only works on globals and variables in `serve`. "
+    "Microservice locals are in detached HEAD state."
+)
+W100 = "You didn't need sudo for that. Who hurt you?"
+W204 = "This expression does nothing. Like a standup meeting."
+W410 = "This code never reaches prod."
 
 ARITHMETIC = {"+", "-", "*", "/", "%"}
 ORDERING = {"<", "<=", ">", ">="}
@@ -174,6 +181,8 @@ class Checker:
         self.owner = SERVE
         self.loop_depth = 0
         self.in_global_init = False
+        # `git revert` and `git log` statements with their resolved targets, for pass 5.
+        self.history: list[tuple[ast.Revert | ast.Log, Symbol]] = []
 
     # Reporting
 
@@ -302,6 +311,10 @@ class Checker:
         for stmt in block.stmts:
             self.stmt(stmt)
         self.scopes.pop()
+        for before, after in zip(block.stmts, block.stmts[1:]):
+            if isinstance(before, ast.Return):
+                self.warning("W410", W410, after.span)
+                break
 
     def stmt(self, stmt: ast.Stmt) -> None:
         match stmt:
@@ -326,6 +339,8 @@ class Checker:
                 if sym.is_const and not sudo:
                     span = Span(stmt.span.start, target.span.end)
                     self.e403(span, f"sudo git push --force {sym.name} = ...")
+                if sudo and not sym.is_const:
+                    self.w100(stmt)
                 if known(sym.ty, ty) and sym.ty is not ty:
                     self.error("E418", e418_assign(sym.name, sym.ty, ty), value.span)
             case ast.If(cond=cond, then=then, else_=else_):
@@ -357,12 +372,24 @@ class Checker:
                 self.expr(value, string_ok=True)
             case ast.Revert(name=target, sudo=sudo):
                 sym = self.target(target)
-                if sym is not None and sym.is_const and not sudo:
+                if sym is None:
+                    return
+                if sym.is_const and not sudo:
                     self.e403(Span(stmt.span.start, target.span.end), f"sudo git revert {sym.name}")
+                if sudo and not sym.is_const:
+                    self.w100(stmt)
+                self.history.append((stmt, sym))
             case ast.Log(name=target):
-                self.target(target)
+                sym = self.target(target)
+                if sym is not None:
+                    self.history.append((stmt, sym))
             case ast.ExprStmt(expr=expr):
                 self.expr(expr)
+                if not isinstance(expr, ast.Call | ast.ErrorExpr):
+                    self.warning("W204", W204, expr.span)
+
+    def w100(self, stmt: ast.Assign | ast.Revert) -> None:
+        self.warning("W100", W100, keyword_span(stmt.span.start, "sudo"))
 
     def e403(self, span: Span, suggestion: str) -> None:
         self.error("E403", E403, span, soft=True, help=f"try `{suggestion}`")
@@ -485,6 +512,15 @@ class Checker:
                 self.error("E418", E418_ARGUMENT, arg.span)
         return Type.NUMBER
 
+    # Pass 5: history targets
+
+    def history_targets(self) -> None:
+        for stmt, sym in self.history:
+            if sym.owner in (GLOBAL, SERVE):
+                sym.tracked = True
+            else:
+                self.error("E405", E405_HISTORY, stmt.span)
+
     # Pass 7: comments
 
     def comments(self, comments: Iterable[Comment]) -> None:
@@ -538,5 +574,6 @@ def check(
     checker.hoist(program)
     checker.global_initializers(program)
     checker.bodies(program)
+    checker.history_targets()
     checker.comments(program.comments if comments is None else comments)
     return checker.symbols, finish(checker.diags)
