@@ -227,7 +227,13 @@ class Checker:
             end = program.span.end
             self.error("E503", E503, program.wq_span or Span(end, end))
         for extra in serves[1:]:
-            self.error("E409", E409_SERVE, keyword_span(extra.span.start, "serve"))
+            first = keyword_span(serves[0].span.start, "serve")
+            self.error(
+                "E409",
+                E409_SERVE,
+                keyword_span(extra.span.start, "serve"),
+                related=[(first, "port 3000 was first taken here")],
+            )
 
     # Pass 2: hoisting
 
@@ -240,7 +246,7 @@ class Checker:
                     # The type comes from the initializer, in pass 3.
                     sym = self.new_symbol(name, kind, Type.UNKNOWN, GLOBAL)
                     if name.name in table:
-                        self.error("E409", e409_installed(name.name), name.span)
+                        self.e409(e409_installed(name.name), name.span, table[name.name])
                     else:
                         table[name.name] = sym
                 case ast.Microservice(name=name, params=params):
@@ -251,9 +257,9 @@ class Checker:
                     if previous is None:
                         table[name.name] = sym
                     elif previous.kind is SymbolKind.MICROSERVICE:
-                        self.error("E409", e409_deployed(name.name), name.span)
+                        self.e409(e409_deployed(name.name), name.span, previous)
                     else:
-                        self.error("E409", e409_installed(name.name), name.span)
+                        self.e409(e409_installed(name.name), name.span, previous)
                     if len(params) > MAX_PARAMS:
                         self.error("E413", e413_params(name.name, len(params)), name.span)
 
@@ -293,7 +299,7 @@ class Checker:
                         visible = self.lookup(param.name)
                         sym = self.new_symbol(param, SymbolKind.PARAM, Type.NUMBER, self.owner)
                         if visible is not None:
-                            self.error("E409", e409_installed(param.name), param.span)
+                            self.e409(e409_installed(param.name), param.span, visible)
                         else:
                             scope[param.name] = sym
                     self.loop_depth = 0
@@ -330,7 +336,7 @@ class Checker:
                 visible = self.lookup(name.name)
                 sym = self.new_symbol(name, kind, ty, self.owner)
                 if visible is not None:
-                    self.error("E409", e409_installed(name.name), name.span)
+                    self.e409(e409_installed(name.name), name.span, visible)
                 else:
                     self.scopes[-1][name.name] = sym
             case ast.Assign(name=target, value=value, sudo=sudo):
@@ -389,6 +395,12 @@ class Checker:
                 self.expr(expr)
                 if not isinstance(expr, ast.Call | ast.ErrorExpr):
                     self.warning("W204", W204, expr.span)
+
+    def e409(self, message: str, span: Span, first: Symbol) -> None:
+        """E409 on the new name, pointing at the first declaration (P2 related information)."""
+        verb = "deployed" if first.kind is SymbolKind.MICROSERVICE else "installed"
+        related = [(first.decl_span, f"`{first.name}` was first {verb} here")]
+        self.error("E409", message, span, related=related)
 
     def w100(self, stmt: ast.Assign | ast.Revert) -> None:
         self.warning("W100", W100, keyword_span(stmt.span.start, "sudo"))

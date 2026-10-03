@@ -91,3 +91,49 @@ nvim --clean --cmd "set rtp+=editors/nvim" --cmd "luafile editors/nvim/btw.lua" 
 
    with no signs left. After `:w`, `btw check` printed nothing and `btw run`
    printed `15` and exited 0.
+
+## 2. relatedInformation
+
+- **E417** already carried one related pair from `bigo.py`: the `doomscroll`
+  keyword of the innermost loop on the deepest path, with the message
+  `nested doomscroll #2 starts here` (the number is the inferred degree).
+  The server already mapped `related` to relatedInformation, so nothing
+  changed for E417 beyond tests.
+- **E409** now points at the first declaration, from the checker. The spec
+  doesn't give the text, so:
+  - `` `x` was first installed here `` when the earlier name is a variable,
+    constant or parameter, and `` `f` was first deployed here `` when it is a
+    microservice. The verb follows the first declaration, not the E409
+    message: a global named like an earlier microservice gets "already
+    installed" (the catalog's message) with "first deployed here".
+  - The location is the earlier symbol's `decl_span` (its name). For a local
+    shadowing a constant that is the global constant's name; for a repeated
+    parameter, the first parameter.
+  - The second `serve` points at the first `serve` keyword with
+    `port 3000 was first taken here`.
+- Related locations are in the same document and use the negotiated
+  position encoding like everything else.
+
+### Verified in Neovim
+
+Neovim 0.11's `vim.diagnostic.open_float()` doesn't render
+relatedInformation (it shows only the message and code), so it was checked
+through the diagnostic's `user_data.lsp.relatedInformation`, which is what a
+plugin or a newer Neovim reads.
+
+1. **E417.** The E417 golden, copied to the scratchpad.
+   `:lua print(vim.inspect(vim.diagnostic.get(0)[1].user_data.lsp.relatedInformation))`
+   prints one location, the file's URI, line 5 characters 8 to 18 (0-based),
+   message `nested doomscroll #2 starts here`. Jumping to it with
+   `vim.lsp.util.show_document(r.location, "utf-8", {focus = true})` puts
+   the cursor at 6,9 on `        doomscroll j < n {`, the inner loop.
+2. **E409.** The E409 golden, copied. Printing code, line, related line and
+   column (1-based) and message for each diagnostic:
+
+   ```
+   E409 5 4 17 `x` was first installed here
+   E409 6 2 16 `LIMIT` was first installed here
+   ```
+
+   Line 4 column 17 is the first `x`; line 2 column 16 is the constant
+   `LIMIT`.

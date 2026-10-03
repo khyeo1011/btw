@@ -286,3 +286,56 @@ def test_overlaps():
     empty = lsp.Span(Pos(2, 0), Pos(2, 0))
     assert lsp.overlaps(empty, Pos(2, 0), Pos(2, 0))
     assert not lsp.overlaps(empty, Pos(2, 1), Pos(2, 1))
+
+
+# relatedInformation (P2): E417 points at the innermost loop, E409 at the first declaration
+
+
+def related(diagnostic: dict) -> list[tuple[int, int, int, str]]:
+    """(line, start character, end character, message) for each related location."""
+    return [
+        (
+            info["location"]["range"]["start"]["line"],
+            info["location"]["range"]["start"]["character"],
+            info["location"]["range"]["end"]["character"],
+            info["message"],
+        )
+        for info in diagnostic.get("relatedInformation") or []
+    ]
+
+
+def test_e417_related_is_the_innermost_loop(client):
+    uri = "file:///p0_e417_big_o_underclaim.btw"
+    open_doc(client, uri, (GOLDEN / "p0_e417_big_o_underclaim.btw").read_text(encoding="utf-8"))
+    [e417] = client.diagnostics(uri)
+    assert e417["code"] == "E417"
+    assert related(e417) == [(5, 8, 18, "nested doomscroll #2 starts here")]
+    assert e417["relatedInformation"][0]["location"]["uri"] == uri
+
+
+def test_e409_related_is_the_first_declaration(client):
+    uri = "file:///p0_e409_already_installed.btw"
+    open_doc(client, uri, (GOLDEN / "p0_e409_already_installed.btw").read_text(encoding="utf-8"))
+    x, limit = client.diagnostics(uri)
+    assert related(x) == [(3, 16, 17, "`x` was first installed here")]
+    assert related(limit) == [(1, 15, 20, "`LIMIT` was first installed here")]
+
+
+@pytest.mark.parametrize(
+    "items, expected",
+    [
+        ("microservice f() {\n}\nmicroservice f() {\n}\n", (1, 13, 14, "`f` was first deployed here")),
+        ("npm install f = 1\nmicroservice f() {\n}\n", (1, 12, 13, "`f` was first installed here")),
+        ("npm install x = 1\nnpm install x = 2\n", (1, 12, 13, "`x` was first installed here")),
+        ("microservice f(n, n) O(1) {\n}\n", (1, 15, 16, "`n` was first installed here")),
+        ("microservice f(f) O(1) {\n}\n", (1, 13, 14, "`f` was first deployed here")),
+        ("serve localhost:3000 {\n}\n", (1, 0, 5, "port 3000 was first taken here")),
+    ],
+    ids=["microservice", "global_then_microservice", "global", "param", "param_shadows_microservice",
+         "second_serve"],
+)
+def test_e409_related_kinds(client, items, expected):
+    uri = "file:///e409.btw"
+    open_doc(client, uri, f"i use arch btw\n{items}serve localhost:3000 {{\n}}\n:wq\n")
+    e409s = [d for d in client.diagnostics(uri) if d["code"] == "E409"]
+    assert [related(d) for d in e409s] == [[expected]]
