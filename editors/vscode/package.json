@@ -1,0 +1,53 @@
+{
+  "name": "btw-lang",
+  "displayName": "btw",
+  "description": "Syntax highlighting and language server client for btw",
+  "version": "0.0.1",
+  "publisher": "btw",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:btw"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "btw",
+        "aliases": [
+          "btw"
+        ],
+        "extensions": [
+          ".btw"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "btw",
+        "scopeName": "source.btw",
+        "path": "./syntaxes/btw.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "btw",
+      "properties": {
+        "btw.serverPath": {
+          "type": "string",
+          "default": "btw-lsp",
+          "description": "Command that starts the btw language server over stdio. Use an absolute path if VS Code can't find it on PATH."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  }
+}

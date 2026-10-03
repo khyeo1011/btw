@@ -1,0 +1,96 @@
+// SYNTAX TEST "source.btw" "keywords, literals and declarations"
+    i use arch btw
+//  ^^^^^^^^^^^^^^ keyword.control.directive.btw
+    i  use	arch 	 btw
+//  ^^^^^^^^^^^^^^^^^ keyword.control.directive.btw
+    serve localhost:3000 {
+//  ^^^^^ keyword.control.directive.btw
+//        ^^^^^^^^^^^^^^ keyword.control.directive.btw
+    :wq
+//  ^^^ keyword.control.directive.btw
+    vibe check (x == 1) { console.log "Fizz" }
+//  ^^^^^^^^^^ keyword.control.btw
+//                   ^ constant.numeric.btw
+//                        ^^^^^^^^^^^ support.function.btw
+//                                    ^^^^^^ string.quoted.double.btw
+    vibe 	 check x {
+//  ^^^^^^^^^^^^ keyword.control.btw
+    } skill issue {
+//    ^^^^^^^^^^^ keyword.control.btw
+    skill	issue vibe   check x {
+//  ^^^^^^^^^^^ keyword.control.btw
+//              ^^^^^^^^^^^^ keyword.control.btw
+    doomscroll LGTM {
+//  ^^^^^^^^^^ keyword.control.btw
+//             ^^^^ constant.language.btw
+    touch   grass
+//  ^^^^^^^^^^^^^ keyword.control.btw
+    ship it 404
+//  ^^^^^^^ keyword.control.btw
+//          ^^^ constant.language.btw
+    npm install -g LIMIT = 10
+//  ^^^^^^^^^^^^^^ storage.type.btw
+//                         ^^ constant.numeric.btw
+    npm  install	-g X = 1
+//  ^^^^^^^^^^^^^^^ storage.type.btw
+    npm install x = 4040
+//  ^^^^^^^^^^^ storage.type.btw
+//                  ^^^^ constant.numeric.btw
+//                  ^^^^ - constant.language.btw
+    npm install y = 1404 + 403 + 1
+//                  ^^^^ constant.numeric.btw
+//                         ^^^ constant.numeric.btw
+//                  ^^^^ - constant.language.btw
+    microservice total(n) O(n^2) {
+//  ^^^^^^^^^^^^ storage.type.btw
+//               ^^^^^ entity.name.function.btw
+//                        ^^^^^^ entity.name.type.btw
+    microservice  f(a, b)	O(log n) {
+//  ^^^^^^^^^^^^ storage.type.btw
+//                ^ entity.name.function.btw
+//                        ^^^^^^^^ entity.name.type.btw
+    microservice g() {
+//  ^^^^^^^^^^^^ storage.type.btw
+//               ^ entity.name.function.btw
+    sudo git push --force LIMIT = 20
+//  ^^^^ keyword.other.btw
+//       ^^^^^^^^^^^^^^^^ keyword.other.btw
+//                                ^^ constant.numeric.btw
+    git   push	--force x = O(1)
+//  ^^^^^^^^^^^^^^^^^^ keyword.other.btw
+//                         ^^^^ - entity.name.type.btw
+    sudo git revert x
+//  ^^^^ keyword.other.btw
+//       ^^^^^^^^^^ keyword.other.btw
+    git log x
+//  ^^^^^^^ keyword.other.btw
+    console.log "vibe check \"ship it\"\n"
+//  ^^^^^^^^^^^ support.function.btw
+//               ^^^^^^^^^^ string.quoted.double.btw
+//               ^^^^^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+//                          ^^ constant.character.escape.btw
+//                                     ^^ constant.character.escape.btw
+    npm install doomscrolling = shipit
+//              ^^^^^^^^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+//                              ^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+    npm install vibe_check = LGTMx + sudo_x
+//              ^^^^^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+//                           ^^^^^ - constant.language.btw
+//                                   ^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+    console.logger(serveX)
+//  ^^^^^^^^^^^^^^ - support.function.btw
+//                 ^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+    npm install i = 1
+//              ^ - keyword.control.directive.btw
+    x:wq
+//   ^^^ keyword.control.directive.btw
+    serve localhost:3000 { ship it 404x }
+//                                 ^^^ constant.language.btw
+    npm install -gx = 1
+//  ^^^^^^^^^^^ storage.type.btw
+//              ^^^ - storage.type.btw
+    git push x = 1
+//  ^^^^^^^^ - keyword.other.btw
+    // TODO vibe check later
+//  ^^^^^^^^^^^^^^^^^^^^^^^^ comment.line.double-slash.btw
+//          ^^^^^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
