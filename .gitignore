@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 /exe/
+/_site/
 downloads/
 eggs/
 .eggs/
