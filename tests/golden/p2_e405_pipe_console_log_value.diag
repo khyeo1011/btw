@@ -1,1 +1,2 @@
+3:17: warning[W226]: 226 IM Used: `y` was installed but never used. `npm prune` it.
 3:25: error[E405]: `console.log` returns nothing. It's void, like my weekend plans.

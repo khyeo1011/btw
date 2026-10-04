@@ -140,6 +140,10 @@ def e429(total: int) -> str:
     return f"Error: technical debt limit exceeded ({total}/{MAX_TODOS} TODOs). Finish something."
 
 
+def w226(name: str) -> str:
+    return f"226 IM Used: `{name}` was installed but never used. `npm prune` it."
+
+
 E403 = "Permission denied. Are you root?"
 E405_TOUCH_GRASS = "Error: `touch grass` outside a `doomscroll`. You were never scrolling."
 E405_GLOBAL_FLAG = "npm ERR! `-g` installs go at the top level."
@@ -193,6 +197,10 @@ class Checker:
         self.in_global_init = False
         # `git revert` and `git log` statements with their resolved targets, for pass 5.
         self.history: list[tuple[ast.Revert | ast.Log, Symbol]] = []
+        # Locals, globals and constants with their declaration's span, and every
+        # symbol mentioned after its declaration, for W226.
+        self.declared: list[tuple[Symbol, Span]] = []
+        self.used: set[Symbol] = set()
 
     # Reporting
 
@@ -256,6 +264,7 @@ class Checker:
                     kind = SymbolKind.CONST if is_const else SymbolKind.GLOBAL
                     # The type comes from the initializer, in pass 3.
                     sym = self.new_symbol(name, kind, Type.UNKNOWN, GLOBAL)
+                    self.declared.append((sym, item.span))
                     if name.name in table:
                         self.e409(e409_installed(name.name), name.span, table[name.name])
                     else:
@@ -346,6 +355,7 @@ class Checker:
                 kind = SymbolKind.CONST if is_const else SymbolKind.LOCAL
                 visible = self.lookup(name.name)
                 sym = self.new_symbol(name, kind, ty, self.owner)
+                self.declared.append((sym, stmt.span))
                 if visible is not None:
                     self.e409(e409_installed(name.name), name.span, visible)
                 else:
@@ -436,6 +446,7 @@ class Checker:
             var.ty = Type.UNKNOWN
             return None
         var.ty = sym.ty
+        self.used.add(sym)
         return sym
 
     def condition(self, cond: ast.Expr, keyword: str) -> None:
@@ -482,6 +493,7 @@ class Checker:
                 if sym.kind is SymbolKind.MICROSERVICE:
                     self.error("E405", e405_microservice_value(name), e.span)
                     return Type.UNKNOWN
+                self.used.add(sym)
                 return sym.ty
             case ast.Unary(op=op, operand=operand):
                 ty = self.expr(operand)
@@ -536,6 +548,7 @@ class Checker:
             self.error("E404", e404_microservice(name), e.callee.span)
             return Type.UNKNOWN
         if sym.kind is not SymbolKind.MICROSERVICE:
+            self.used.add(sym)
             self.error("E405", e405_variable_called(name), e.callee.span)
             return Type.UNKNOWN
         assert sym.arity is not None
@@ -554,6 +567,17 @@ class Checker:
                 sym.tracked = True
             else:
                 self.error("E405", E405_HISTORY, stmt.span)
+
+    # After pass 5: unused variables
+
+    def unused(self) -> None:
+        """W226 on each local, global or constant nobody mentions, unless its
+        declaration already has an error (Language Spec 11)."""
+        errors = [d.span.start for d in self.diags if d.severity is Severity.ERROR]
+        for sym, span in self.declared:
+            if sym in self.used or any(span.contains(start) for start in errors):
+                continue
+            self.warning("W226", w226(sym.name), sym.decl_span)
 
     # Pass 7: comments
 
@@ -609,5 +633,6 @@ def check(
     checker.global_initializers(program)
     checker.bodies(program)
     checker.history_targets()
+    checker.unused()
     checker.comments(program.comments if comments is None else comments)
     return checker.symbols, finish(checker.diags)

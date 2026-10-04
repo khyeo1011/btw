@@ -100,6 +100,9 @@ def check(source: str, path: str):
     """Return (program, symbols, diagnostics): Implementation Spec 7, passes 1 to 9."""
     tokens, program, diagnostics = _parse(source)
     symbols, check_diagnostics = _component("checker").check(program, program.comments)
+    if any(d.code == "E400" for d in diagnostics):
+        # Dropped statements hide their uses, so W226 waits for a clean parse.
+        check_diagnostics = [d for d in check_diagnostics if d.code != "W226"]
     diagnostics += check_diagnostics
     try:
         bigo = _component("bigo")

@@ -286,9 +286,10 @@ def test_quick_fixes_round_trip(client, source, code, title):
             "textDocument/didChange",
             {"textDocument": {"uri": uri, "version": version}, "contentChanges": [{"text": source}]},
         )
-        diagnostics = client.diagnostics(uri)
+        # A fix can leave a variable unused (e400_foreign_const); W226 has no fix.
+        diagnostics = [d for d in client.diagnostics(uri) if d["code"] != "W226"]
     _, _, after = driver.check(source, "fix.btw")
-    assert after == []
+    assert all(d.code == "W226" for d in after)
 
 
 def test_code_actions_only_for_the_requested_range(client):
@@ -343,7 +344,7 @@ def test_e417_related_is_the_innermost_loop(client):
 def test_e409_related_is_the_first_declaration(client):
     uri = "file:///p0_e409_already_installed.btw"
     open_doc(client, uri, (GOLDEN / "p0_e409_already_installed.btw").read_text(encoding="utf-8"))
-    x, limit = client.diagnostics(uri)
+    x, limit = [d for d in client.diagnostics(uri) if d["code"] == "E409"]
     assert related(x) == [(3, 16, 17, "`x` was first installed here")]
     assert related(limit) == [(1, 15, 20, "`LIMIT` was first installed here")]
 
