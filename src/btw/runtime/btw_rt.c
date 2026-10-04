@@ -2,7 +2,7 @@
  *
  *     gcc -o OUT prog.s runtime/btw_rt.c
  *
- * Printing, runtime errors and git history live here so the generated
+ * Printing, runtime errors, git history and curl live here so the generated
  * assembly never has to format a number. Every function is called from
  * generated code with rsp aligned to 16 bytes, following System V.
  */
@@ -42,6 +42,44 @@ void btw_rt_div_zero(void) {
 
 void btw_rt_stack_overflow(void) {
     fail("Stack overflow. Please search stackoverflow.com.", 1);
+}
+
+/* curl (Language Spec 10, P2): the next number on stdin. Hand-rolled, since
+ * scanf's %ld has undefined behavior on overflow and accepts +5. It reads
+ * the token and the one whitespace character after it, never more. */
+
+static int is_space(int c) { /* ASCII only, whatever the locale */
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+}
+
+long btw_rt_curl(void) {
+    static const char *weird = "curl: (8) Weird server reply.";
+    int c = getchar();
+    while (c != EOF && is_space(c)) {
+        c = getchar();
+    }
+    if (c == EOF) {
+        fail("curl: (52) Empty reply from server.", 52);
+    }
+    int negative = c == '-';
+    if (negative) {
+        c = getchar();
+    }
+    unsigned long limit = negative ? 9223372036854775808UL : 9223372036854775807UL;
+    unsigned long value = 0;
+    int digits = 0;
+    for (; c != EOF && !is_space(c); c = getchar()) {
+        unsigned long d = (unsigned long)(c - '0');
+        if (c < '0' || c > '9' || value > (limit - d) / 10) {
+            fail(weird, 8);
+        }
+        value = value * 10 + d;
+        digits++;
+    }
+    if (digits == 0) {
+        fail(weird, 8);
+    }
+    return negative ? (long)(0 - value) : (long)value;
 }
 
 /* Git history (Language Spec 9.3, P2). Each tracked variable gets an id from

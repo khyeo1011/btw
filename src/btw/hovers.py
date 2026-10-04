@@ -56,6 +56,10 @@ KEYWORDS: dict[K, str] = {
     K.SHIP_IT: "**return.** Straight to prod. Tests are a TODO.",
     K.LGTM: "**true.** Approved without reading.",
     K.NOT_FOUND: "**false.** Truth not found. Also the one number you can't type.",
+    K.CURL: (
+        "**Input.** Reads one number from stdin. "
+        "The only network call this server will ever make."
+    ),
 }
 
 NO_SLA = "I had to read your code to find out it's {}. Write an SLA."

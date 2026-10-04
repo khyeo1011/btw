@@ -675,3 +675,13 @@ def test_completion_and_definition_over_the_protocol(client):
         "uri": uri,
         "range": {"start": {"line": 2, "character": 13}, "end": {"line": 2, "character": 18}},
     }
+
+
+def test_curl_is_a_function_like_console_log():
+    source = "i use arch btw\nserve localhost:3000 {\n    console.log curl\n}\n:wq\n"
+    lines = source.split("\n")
+    kinds = {
+        lines[span.start.line][span.start.col : span.end.col]: kind
+        for span, kind, _ in lsp.classify(source)
+    }
+    assert kinds["curl"] == kinds["console.log"] == "function"

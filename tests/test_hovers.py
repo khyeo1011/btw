@@ -161,6 +161,14 @@ def test_big_o_annotation():
     assert text_at(20, "O(s") == prefix + "can't verify O(sqrt n). Inferred: O(1)."
 
 
+def test_curl():
+    source = "i use arch btw\nserve localhost:3000 {\n    ship it curl\n}\n:wq\n"
+    assert text_at(3, "curl", source=source) == (
+        "**Input.** Reads one number from stdin. "
+        "The only network call this server will ever make."
+    )
+
+
 def test_nothing_to_say():
     assert text_at(2, "10") is None
     assert text_at(5, "two") == text_at(4, "one")

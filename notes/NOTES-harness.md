@@ -74,7 +74,7 @@ change.
 | `btw.checker`  | `check(program, comments)`                  | `(symbols, diagnostics)`                  |
 | `btw.bigo`     | `check_bigo(program, tokens=None)` (spec 8) | diagnostics (W102's fix needs the tokens) |
 | `btw.suppress` | `apply(program, diagnostics)`               | the diagnostics after suppression         |
-| `btw.interp`   | `run(program, symbols, stdout, stderr)`     | the exit code                             |
+| `btw.interp`   | `run(program, symbols, stdout, stderr, stdin)` | the exit code (stdin is binary, for `curl`) |
 | `btw.codegen`  | `gen(program, symbols, annotate=False, source=None)` | `(assembly_text, diagnostics)` |
 | `btw.loadtest` | `loadtest(program, symbols, name, args="n")` | the report text (Language Spec 9.7)       |
 | `btw.lsp`      | `main()` (the `btw-lsp` entry point)        | nothing; serves stdio until exit          |
@@ -147,7 +147,16 @@ change.
 - `p1_w203_unverifiable.btw`: W203 O(log n)
 - `p1_w417_overclaim.btw`: W417 O(n) annotation on an O(1) microservice
 - `p1_w509_infinite_doomscroll.btw`: W509 doomscroll LGTM with no way out (check-only)
+- `p2_curl_empty_reply.btw`: curl with only a newline left: curl: (52), stdout flushed first, exit 52
+- `p2_curl_limits.btw`: curl reads -0, the minimum and the maximum, across \v and \f; the results wrap
+- `p2_curl_no_stdin.btw`: no `.in`, so stdin is empty and the first curl is curl: (52)
+- `p2_curl_statement.btw`: curl as a statement (no W204), at the head of a pipe, and as the exit code
+- `p2_curl_sum.btw`: curl reads a count, then that many numbers, separated by newlines, a space and a tab; leading zeros are fine
+- `p2_curl_weird_overflow.btw`: curl reads 9223372036854775808: curl: (8), exit 8
+- `p2_curl_weird_reply.btw`: curl reads `12abc`: curl: (8) after the first number is printed, exit 8
+- `p2_e400_curl_reserved.btw`: E400 reserved word `curl` used as a variable name
 - `p2_e403_revert_constant.btw`: E403 git revert on a constant without sudo
+- `p2_e405_curl_global_init.btw`: E405 curl in a global initializer, on the `curl`
 - `p2_e405_history_on_local.btw`: E405 git revert on a microservice local and git log on a parameter
 - `p2_e405_pipe_console_log_value.btw`: E405 pipe into console.log used as a value
 - `p2_git_history.btw`: the git log example from 9.3

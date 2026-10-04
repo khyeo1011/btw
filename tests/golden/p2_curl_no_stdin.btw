@@ -1,0 +1,6 @@
+i use arch btw
+serve localhost:3000 {
+    console.log "localhost:3000 is listening"
+    console.log curl
+}
+:wq

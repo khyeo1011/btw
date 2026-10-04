@@ -79,7 +79,7 @@ btw-lang/
 | Command                           | What it does                                                                                                                       | Exit code                                                                       |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `btw check FILE`                  | Lex, parse, check, Big O, suppression. Prints diagnostics with `--format pretty` (default) or `--format short` (tests).            | 0 with no errors (warnings are fine), 1 with errors, 2 for usage or file errors |
-| `btw run FILE`                    | Check, then interpret if there are no errors. Diagnostics go to stderr.                                                            | The program's exit code, or 1 for compile errors                                |
+| `btw run FILE`                    | Check, then interpret if there are no errors. Diagnostics go to stderr. The program's stdin is `curl`'s input.                     | The program's exit code, or 1 for compile errors                                |
 | `btw build FILE -o OUT`           | Check, generate assembly, assemble and link with gcc. `-o` defaults to the file name without `.btw`. `--keep-asm` also writes `OUT.s`. | 0 ok, 1 compile errors (E501 included), 3 when gcc fails (E502)            |
 | `btw asm FILE`                    | Print the generated assembly. `--annotate` adds source-line comments.                                                              | 0 or 1                                                                          |
 | `btw loadtest FILE NAME`          | Check, then call microservice NAME in the interpreter for n = 8 to 1024, count steps and fit the measured Big O (Language Spec 9.7). `--args 1,n,5` for other parameter lists. Soft errors don't block it. | 0 when it ran, whatever the verdict, 1 for hard errors, 2 for usage or file errors |
@@ -135,7 +135,7 @@ error[E404]: Error 404: variable `x` not found. Did you forget to `npm install` 
 ```
 keywords    ARCH SERVE LOCALHOST WQ NPM_INSTALL_G NPM_INSTALL SUDO GIT_PUSH_FORCE
             GIT_PUSH_NO_FORCE GIT_REVERT GIT_LOG CONSOLE_LOG VIBE_CHECK SKILL_ISSUE
-            DOOMSCROLL TOUCH_GRASS MICROSERVICE SHIP_IT LGTM NOT_FOUND
+            DOOMSCROLL TOUCH_GRASS MICROSERVICE SHIP_IT LGTM NOT_FOUND CURL
 values      IDENT INT STRING
 operators   PLUS MINUS STAR SLASH PERCENT EQ_EQ BANG_EQ LT LE GT GE
             AND_AND OR_OR BANG EQ PIPE CARET
@@ -175,6 +175,7 @@ Every node has a keyword-only `span`, so node fields stay positional: `IntLit(42
 | Binary                 | `op`, `left`, `right`                                         | Includes `&&` and `\|\|`                                                                  |
 | Call                   | `callee` (Ident), `args`                                      | Pipes desugar into Call and Print. Gets `sym`.                                            |
 | ErrorExpr              | none                                                          | Parser placeholder. Its type is UNKNOWN.                                                  |
+| Curl                   | none                                                          | `curl` (P2). Its type is NUMBER.                                                          |
 | Ident                  | `name`                                                        | Names at declaration sites and Call callees. Gets `sym`, so the interpreter can key declarations and parameters by Symbol. |
 
 ## 4.5 Symbols and types
@@ -241,6 +242,7 @@ Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN 
 - Arithmetic helpers: a wrap function that maps any integer into the signed 64-bit range; division that truncates toward zero; remainder equal to a minus b times the truncated quotient. Test them against Language Spec §5.
 - Depth counter: increment on microservice entry, decrement on exit, runtime error above 1,000. Call `sys.setrecursionlimit(50_000)` at startup.
 - Runtime errors: flush stdout, write the exact message to stderr, return the exit code.
+- Input (P2): `curl` reads from a binary stdin stream passed to `run`, never from `sys.stdin` directly, so the CLI passes the real stdin and the load test and the playground pass their own.
 - History (P2): a dict from Symbol to a list capped at 16 entries.
 
 # 10. Native codegen
@@ -330,6 +332,7 @@ At every function entry, `rsp` is 8 more than a multiple of 16 (the call pushed 
 | `void btw_rt_hist_commit(long id, long v)`              | Append v, dropping the oldest past 16 (P2)                                                                                          |
 | `long btw_rt_hist_revert(long id, const char *name)`    | With fewer than 2 commits: flush stdout, print `fatal: bad revision 'NAME~1'`, exit 128. Otherwise append the previous value and return it (P2). |
 | `void btw_rt_hist_log(long id, const char *name, long is_bool)` | Print the history newest first, in the Language Spec §9.3 format (P2)                                                       |
+| `long btw_rt_curl(void)`                                | Read the next number from stdin (Language Spec §10) with `getchar` and return it. At the end of input or on a bad token: flush stdout, print the exact message, exit 52 or 8 (P2). Not `scanf`: `%ld` overflow is undefined and it accepts `+5`. |
 
 Up to 64 tracked variables, with ids assigned by the codegen. More than that is E501.
 
@@ -383,7 +386,7 @@ Lives in `editors/vscode`, runs with F5 (Extension Development Host), never gets
 | `vibe check`, `skill issue`, `doomscroll`, `touch grass`, `ship it` | keyword.control.btw                                               |
 | `npm install -g`, `npm install`, `microservice`               | storage.type.btw                                                        |
 | `git push --force`, `git revert`, `git log`, `sudo`           | keyword.other.btw                                                       |
-| `console.log`                                                 | support.function.btw                                                    |
+| `console.log`, `curl`                                         | support.function.btw                                                    |
 | `LGTM`, `404`                                                 | constant.language.btw                                                   |
 | Other numbers                                                 | constant.numeric.btw                                                    |
 | Strings                                                       | string.quoted.double.btw, with escapes as constant.character.escape.btw |
@@ -411,12 +414,13 @@ Put the multi-word patterns first, allow any whitespace run between words, use w
 | `NAME.out`             | Expected stdout. The interpreter and the native binary must both match it byte for byte.                                                                 |
 | `NAME.err`             | Expected stderr (runtime errors)                                                                                                                         |
 | `NAME.exit`            | Expected exit code. Missing means 0.                                                                                                                     |
+| `NAME.in`              | Stdin for the interpreter and the native binary (P2). Missing means empty stdin, never the runner's own.                                                 |
 | None of out, err, exit | Check-only: the program is never executed (for example the infinite doomscroll)                                                                          |
 
 - **Runner, per program:**
   1. Run `btw check --format short`, strip the path prefix, and compare with `.diag` (empty when missing).
   2. If the expected diagnostics contain any error, stop there.
-  3. If `.out`, `.err` or `.exit` exists, run the interpreter with a 5-second timeout and compare stdout, stderr and the exit code.
+  3. If `.out`, `.err` or `.exit` exists, run the interpreter with a 5-second timeout, `.in` (or nothing) on stdin, and compare stdout, stderr and the exit code.
   4. Native: build and run with a 5-second timeout and compare the same three. If the build reports E501, mark the case as an expected failure ("native: not yet") rather than a failure.
 - **Options:** `--tier N` runs only tests whose prefix is pN or lower. `--bless` rewrites expectation files from the current output. Only a human runs `--bless`, after reading the diff.
 - **Unit tests per component:** tricky lexer inputs, parser shapes (else on the next line, one-line blocks, precedence, recovery), Big O verdicts, the arithmetic helpers.

@@ -73,6 +73,8 @@ def test_multi_word_keyword_does_not_cross_newline():
         ("sudo", [K.SUDO]),
         ("microservice", [K.MICROSERVICE]),
         ("O", [K.IDENT]),
+        ("curl", [K.CURL]),
+        ("curly", [K.IDENT]),
     ],
 )
 def test_word_boundaries(src, expected):

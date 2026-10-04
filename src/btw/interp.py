@@ -1,7 +1,7 @@
 """Tree-walking interpreter (Implementation Spec 9, Language Spec 5, 6 and 10).
 
-`run(program, symbols, stdout, stderr)` executes a checked program with no
-errors and returns its exit code. It's the oracle for the native backend, so
+`run(program, symbols, stdout, stderr, stdin)` executes a checked program with
+no errors and returns its exit code. It's the oracle for the native backend, so
 it favors being obviously right over being fast.
 
 Values are Python ints, always wrapped to signed 64 bits, and bools. Strings
@@ -11,8 +11,9 @@ Symbol, so a frame is a flat dict keyed by Symbol and needs no scope logic.
 
 from __future__ import annotations
 
+import re
 import sys
-from typing import TextIO
+from typing import BinaryIO, TextIO
 
 from btw import ast
 from btw.checker import Symbol, SymbolKind, Symbols
@@ -25,6 +26,10 @@ DIVISION_BY_ZERO = (
     "Runtime error: division by zero. Have you tried turning it off and on again?"
 )
 STACK_OVERFLOW = "Stack overflow. Please search stackoverflow.com."
+EMPTY_REPLY = "curl: (52) Empty reply from server."
+WEIRD_REPLY = "curl: (8) Weird server reply."
+WHITESPACE = b" \t\n\r\v\f"  # ASCII only, like C's isspace
+NUMBER = re.compile(rb"-?[0-9]+")
 
 type Value = int | bool
 
@@ -47,6 +52,24 @@ def div(a: int, b: int) -> int:
 def rem(a: int, b: int) -> int:
     """The remainder of `div`: it takes the sign of `a`. The caller checks for zero."""
     return wrap(a - b * div(a, b))
+
+
+def read_number(stdin: BinaryIO) -> int:
+    """`curl` (Language Spec 10): skip whitespace, then read one token and the
+    one whitespace byte after it, never more, so an interactive run doesn't
+    wait for input it doesn't need."""
+    c = stdin.read(1)
+    while c and c in WHITESPACE:
+        c = stdin.read(1)
+    if not c:
+        raise RuntimeFault(EMPTY_REPLY, 52)
+    token = bytearray()
+    while c and c not in WHITESPACE:
+        token += c
+        c = stdin.read(1)
+    if not NUMBER.fullmatch(token) or wrap(int(token)) != int(token):
+        raise RuntimeFault(WEIRD_REPLY, 8)
+    return int(token)
 
 
 def format_value(value: Value) -> str:
@@ -84,10 +107,13 @@ class ReturnSignal(Exception):
 
 
 class Interpreter:
-    def __init__(self, program: ast.Program, symbols: Symbols, stdout: TextIO) -> None:
+    def __init__(
+        self, program: ast.Program, symbols: Symbols, stdout: TextIO, stdin: BinaryIO
+    ) -> None:
         self.program = program
         self.symbols = symbols
         self.stdout = stdout
+        self.stdin = stdin
         self.globals: dict[Symbol, Value] = {}
         self.frame: dict[Symbol, Value] = {}
         self.depth = 0
@@ -198,6 +224,8 @@ class Interpreter:
                 return wrap(value)
             case ast.BoolLit(value=value):
                 return value
+            case ast.Curl():
+                return read_number(self.stdin)
             case ast.Var(sym=sym):
                 return self.load(sym)
             case ast.Unary(op="-", operand=operand):
@@ -263,7 +291,9 @@ class Interpreter:
         return 0  # falling off the end returns 0
 
 
-def run(program: ast.Program, symbols: Symbols, stdout: TextIO, stderr: TextIO) -> int:
+def run(
+    program: ast.Program, symbols: Symbols, stdout: TextIO, stderr: TextIO, stdin: BinaryIO
+) -> int:
     """Run a checked program and return its exit code (Language Spec 10).
 
     The recursion limit goes back to its old value afterwards, so the raise
@@ -272,7 +302,7 @@ def run(program: ast.Program, symbols: Symbols, stdout: TextIO, stderr: TextIO) 
     limit = sys.getrecursionlimit()
     sys.setrecursionlimit(max(limit, RECURSION_LIMIT))
     try:
-        return Interpreter(program, symbols, stdout).run()
+        return Interpreter(program, symbols, stdout, stdin).run()
     except RuntimeFault as fault:
         stdout.flush()
         stderr.write(fault.message + "\n")

@@ -22,19 +22,19 @@ def asm(source: str, annotate: bool = False):
     return driver.asm(source, "test.btw", annotate)
 
 
-def interpret(source: str) -> tuple[str, str, int]:
+def interpret(source: str, stdin: bytes = b"") -> tuple[str, str, int]:
     stdout, stderr = io.StringIO(), io.StringIO()
-    diagnostics, code = driver.run(source, "test.btw", stdout, stderr)
+    diagnostics, code = driver.run(source, "test.btw", stdout, stderr, io.BytesIO(stdin))
     assert code is not None, diagnostics
     return stdout.getvalue(), stderr.getvalue(), code & 0xFF
 
 
-def native(source: str, tmp_path: Path) -> tuple[str, str, int]:
+def native(source: str, tmp_path: Path, stdin: bytes = b"") -> tuple[str, str, int]:
     binary = tmp_path / "prog"
     diagnostics, gcc_stderr = driver.build(source, "test.btw", binary)
     assert gcc_stderr is None, gcc_stderr
     assert not driver.has_errors(diagnostics), diagnostics
-    result = subprocess.run([binary], capture_output=True, timeout=5)
+    result = subprocess.run([binary], input=stdin, capture_output=True, timeout=5)
     return result.stdout.decode(), result.stderr.decode(), result.returncode
 
 
@@ -508,6 +508,38 @@ def test_native_matches_interpreter(name, tmp_path):
     assert native(source, tmp_path) == interpret(source)
 
 
+CURL_INPUTS = [
+    b"",
+    b" \t\r\n\v\f",
+    b"1 2 3",
+    b"1\t2\r\n3",
+    b"1\v2\f3 \t\n",
+    b"-0 007 -00",
+    b"9223372036854775807 -9223372036854775808 0",
+    b"9223372036854775808",
+    b"-9223372036854775809",
+    b"18446744073709551616",
+    b"99999999999999999999999",
+    b"00000000000000000000000000000001 2 3",
+    b"+5",
+    b"-",
+    b"--5",
+    b"5-",
+    b"1.5",
+    b"1\x002 3",
+    b"\xc2\xa05",
+    b"\xd9\xa5",
+    b"1 2",
+]
+
+
+@needs_gcc
+@pytest.mark.parametrize("stdin", CURL_INPUTS, ids=repr)
+def test_native_curl_matches_interpreter(stdin, tmp_path):
+    source = program("    console.log curl", "    console.log curl", "    console.log curl")
+    assert native(source, tmp_path, stdin) == interpret(source, stdin)
+
+
 # Stack alignment: every runtime function checks rsp on entry
 
 ALIGNMENT_PROBE = r"""
@@ -523,6 +555,7 @@ ALIGNMENT_PROBE = r"""
 #define btw_rt_hist_commit real_hist_commit
 #define btw_rt_hist_revert real_hist_revert
 #define btw_rt_hist_log real_hist_log
+#define btw_rt_curl real_curl
 #include "RUNTIME"
 #undef btw_rt_print_int
 #undef btw_rt_print_bool
@@ -533,6 +566,7 @@ ALIGNMENT_PROBE = r"""
 #undef btw_rt_hist_commit
 #undef btw_rt_hist_revert
 #undef btw_rt_hist_log
+#undef btw_rt_curl
 
 /* At -O0 with a frame pointer, rbp is 16-byte aligned exactly when the
  * caller's rsp was aligned at the call. */
@@ -550,6 +584,7 @@ long btw_rt_hist_revert(long id, const char *name) { CHECK; return real_hist_rev
 void btw_rt_hist_log(long id, const char *name, long is_bool) {
     CHECK; real_hist_log(id, name, is_bool);
 }
+long btw_rt_curl(void) { CHECK; return real_curl(); }
 """
 
 
@@ -574,6 +609,12 @@ ALIGNMENT_PROGRAMS = {
     },
 }
 
+ALIGNMENT_STDIN = {
+    f"golden_{path.stem}": path.with_suffix(".in").read_bytes()
+    for path in sorted(GOLDEN.glob("*.btw"))
+    if path.with_suffix(".in").exists()
+}
+
 
 @needs_gcc
 @pytest.mark.parametrize("name", ALIGNMENT_PROGRAMS)
@@ -586,9 +627,10 @@ def test_every_runtime_call_is_aligned(name, probe_runtime, tmp_path):
     assembly.write_text(text)
     binary = tmp_path / "prog"
     subprocess.run(["gcc", "-o", str(binary), str(assembly), str(probe_runtime)], check=True)
-    result = subprocess.run([binary], capture_output=True, timeout=5)
+    stdin = ALIGNMENT_STDIN.get(name, b"")
+    result = subprocess.run([binary], input=stdin, capture_output=True, timeout=5)
     stdout, stderr = result.stdout.decode(), result.stderr.decode()
-    assert (stdout, stderr, result.returncode) == interpret(source)
+    assert (stdout, stderr, result.returncode) == interpret(source, stdin)
 
 
 @needs_gcc

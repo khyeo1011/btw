@@ -251,6 +251,17 @@ def test_output_is_discarded(capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_stdin_is_empty():
+    service = """microservice ask(n) O(1) {
+    ship it n + curl
+}"""
+    with pytest.raises(BtwError) as error:
+        driver.loadtest(program(service), "t.btw", "ask")
+    assert str(error.value) == (
+        "need at least 2 sizes to fit a slope. n = 8: curl: (52) Empty reply from server. Stopped."
+    )
+
+
 # Errors
 
 

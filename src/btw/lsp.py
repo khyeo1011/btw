@@ -233,7 +233,7 @@ KEYWORD_KINDS = {
     K.GIT_PUSH_FORCE, K.GIT_PUSH_NO_FORCE, K.GIT_REVERT, K.GIT_LOG, K.VIBE_CHECK,
     K.SKILL_ISSUE, K.DOOMSCROLL, K.TOUCH_GRASS, K.MICROSERVICE, K.SHIP_IT, K.LGTM,
     K.NOT_FOUND,
-}  # every keyword but console.log, which is a function like in the TextMate grammar
+}  # every keyword but console.log and curl, functions like in the TextMate grammar
 OPERATOR_KINDS = {
     K.PLUS, K.MINUS, K.STAR, K.SLASH, K.PERCENT, K.EQ_EQ, K.BANG_EQ, K.LT, K.LE,
     K.GT, K.GE, K.AND_AND, K.OR_OR, K.BANG, K.EQ, K.PIPE, K.CARET,
@@ -283,7 +283,7 @@ def classify(source: str) -> list[tuple[Span, str, bool]]:
     found: list[tuple[Span, str, bool]] = [(c.span, "comment", False) for c in comments]
     for token in tokens:
         match token.kind:
-            case K.CONSOLE_LOG:
+            case K.CONSOLE_LOG | K.CURL:
                 found.append((token.span, "function", False))
             case kind if kind in KEYWORD_KINDS:
                 found.append((token.span, "keyword", False))
@@ -418,6 +418,7 @@ SNIPPETS = {
     "ship it": "ship it $0",
     "LGTM": "LGTM",
     "404": "404",
+    "curl": "curl",
 }
 
 COMPLETION_KINDS = {

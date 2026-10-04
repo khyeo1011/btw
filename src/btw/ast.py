@@ -94,6 +94,11 @@ class Call(Expr):
 
 
 @dataclass
+class Curl(Expr):
+    """`curl`: the next number from stdin (P2)."""
+
+
+@dataclass
 class ErrorExpr(Expr):
     """Parser placeholder for a missing or broken expression."""
 

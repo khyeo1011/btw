@@ -35,6 +35,7 @@ WORDS = {
     "doomscroll": K.DOOMSCROLL,
     "microservice": K.MICROSERVICE,
     "LGTM": K.LGTM,
+    "curl": K.CURL,
 }
 
 # Longest first, so `==` wins over `=`.

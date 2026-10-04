@@ -114,6 +114,7 @@ runs.
 | `LGTM` / `404`               | true / false         | Code review and missing things          |
 | `git revert x` / `git log x` | undo / print history | Undo for variables, the git way        |
 | `a \| f \| console.log`      | pipe                 | Desugars to `console.log f(a)`          |
+| `npm install n = curl`       | read a number        | From stdin. At EOF: `curl: (52)`        |
 | `// TODO ...`                | the only comment     | More than 5 per file fails the build    |
 
 Numbers are signed 64-bit and wrap on overflow. The literal `404` is always

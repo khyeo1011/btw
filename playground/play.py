@@ -23,12 +23,15 @@ def check(source: str) -> str:
     return "\n\n".join(blocks)
 
 
-def run(source: str) -> str:
+def run(source: str, stdin: str = "") -> str:
     """Return JSON: stdout, stderr and the exit code, which is null when errors
-    blocked the run."""
+    blocked the run. `stdin` is all of `curl`'s input, given up front, since
+    the worker can't stop to wait for typing."""
     stdout, stderr = io.StringIO(), io.StringIO()
     try:
-        _, exit_code = driver.run(source, PATH, stdout, stderr)
+        _, exit_code = driver.run(
+            source, PATH, stdout, stderr, io.BytesIO(stdin.encode("utf-8"))
+        )
     except Exception:
         exit_code = None  # check() already reported E500
     return json.dumps(

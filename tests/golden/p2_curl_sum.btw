@@ -1,0 +1,11 @@
+i use arch btw
+serve localhost:3000 {
+    npm install n = curl
+    npm install total = 0
+    doomscroll n > 0 {
+        git push --force total = total + curl
+        git push --force n = n - 1
+    }
+    console.log total
+}
+:wq
