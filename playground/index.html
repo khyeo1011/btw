@@ -321,7 +321,7 @@ microservice twoSum(n, target) {
               : `The interpreter crashed: ${data.crash}`,
           );
         } else {
-          done(data.runs, ms);
+          done(data.runs, ms, data.runtime);
         }
       }
     };
@@ -360,9 +360,10 @@ microservice twoSum(n, target) {
   }
 
   // Runs `sources` on the worker, `out` and `diagnostics` show the results and
-  // `done(runs, ms)` fills in `out`. `again` is run or runTests, whichever
-  // asked, for when the worker has to start first.
-  function submit(again, { sources, stdin = "", out, diagnostics, done }) {
+  // `done(runs, ms, runtime)` fills in `out`. `runtime` names a microservice
+  // to infer the O() of. `again` is run or runTests, whichever asked, for when
+  // the worker has to start first.
+  function submit(again, { sources, stdin = "", runtime = null, out, diagnostics, done }) {
     if (!ready) {
       queued = again;
       return;
@@ -393,7 +394,7 @@ microservice twoSum(n, target) {
         restart(out, `Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
       }, TIMEOUT_MS),
     };
-    worker.postMessage({ id, sources, stdin });
+    worker.postMessage({ id, sources, stdin, runtime });
   }
 
   function run() {
@@ -423,6 +424,7 @@ microservice twoSum(n, target) {
     const code = solution.value;
     submit(runTests, {
       sources: TESTS.map((test) => withTest(code, test)),
+      runtime: "twoSum",
       out: tests,
       diagnostics: testDiagnostics,
       done: showTests,
@@ -438,7 +440,16 @@ microservice twoSum(n, target) {
     tests.replaceChildren(...TESTS.map((test) => line(`· ${describe(test)}\n`)));
   }
 
-  function showTests(runs, ms) {
+  // A hash map solves Two Sum in O(n), and btw doesn't have one. Passing in
+  // less than O(n) means skipping elements: only hardcoded answers do that.
+  function beats(degree) {
+    if (degree === null) return "Beats ?% of hash maps.";
+    if (degree[0] < 1) return "Beats 100% of hash maps. Hardcoded, huh?";
+    if (degree[0] === 1 && degree[1] === 0) return "Beats 100% of hash maps. How?";
+    return "Beats 0% of hash maps.";
+  }
+
+  function showTests(runs, ms, runtime) {
     status.textContent = `Done in ${ms} ms.`;
     if (runs[0].exit === null) {
       tests.replaceChildren(line("Errors blocked the run.", "note"));
@@ -466,6 +477,9 @@ microservice twoSum(n, target) {
         "note",
       ),
     );
+    if (passed === TESTS.length && runtime) {
+      tests.append(line(`\nAccepted. Runtime: ${runtime.text}. ${beats(runtime.degree)}`, "pass"));
+    }
   }
 
   async function fetchExample(file) {

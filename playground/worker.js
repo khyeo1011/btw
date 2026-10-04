@@ -30,13 +30,15 @@ ready.then(
 
 // A message runs one program, or several for the Two Sum tests: one per test,
 // all the same code with a different array. Their diagnostics match, so only
-// the first program's are shown.
+// the first program's are shown. `runtime` names a microservice whose
+// inferred O() comes back with the runs.
 onmessage = async ({ data }) => {
   const play = await ready;
   try {
     postMessage({ type: "diagnostics", id: data.id, text: play.check(data.sources[0]) });
     const runs = data.sources.map((source) => JSON.parse(play.run(source, data.stdin)));
-    postMessage({ type: "result", id: data.id, runs });
+    const runtime = data.runtime ? JSON.parse(play.runtime(data.sources[0], data.runtime)) : null;
+    postMessage({ type: "result", id: data.id, runs, runtime });
   } catch (error) {
     postMessage({ type: "result", id: data.id, crash: String(error) });
   }
