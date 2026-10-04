@@ -2,7 +2,12 @@
 // freeze the page: index.html terminates this worker when a run takes too long.
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
 
-async function fetchOk(url) {
+// The page passes its build as ?v=, so this worker fetches files from the same
+// build as the page, never stale ones from the browser cache.
+const BUILD = new URL(import.meta.url).searchParams.get("v");
+
+async function fetchOk(path) {
+  const url = `${path}?v=${BUILD}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return response;

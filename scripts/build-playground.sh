@@ -39,4 +39,16 @@ for name in "${examples[@]}"; do
     fi
 done
 printf '{"wheel": "%s"}\n' "$wheel" > "$site/playground.json"
+
+# Stamp the page with a hash of everything else it loads. The page puts it in
+# every URL, so a deploy can't pair a new page with files cached from an old
+# one (the wheel's name doesn't change between versions).
+build="$(cd "$site" && find . -type f ! -name index.html -print0 | sort -z |
+    xargs -0 sha256sum | sha256sum | cut -c1-12)"
+stamp='<meta name="btw-build" content="dev">'
+if [ "$(grep -cF "$stamp" "$site/index.html")" -ne 1 ]; then
+    echo "index.html must contain $stamp exactly once" >&2
+    exit 1
+fi
+sed -i "s|$stamp|<meta name=\"btw-build\" content=\"$build\">|" "$site/index.html"
 echo "built: $site"
