@@ -196,6 +196,7 @@
 
   <div class="toolbar">
     <button id="run" disabled>Run</button>
+    <button data-share="playground">Share</button>
   </div>
 
   <div class="grid">
@@ -226,6 +227,7 @@
   <div id="two-sum" role="tabpanel" hidden>
   <div class="toolbar">
     <button id="test" disabled>Run tests</button>
+    <button data-share="two-sum">Share</button>
   </div>
 
   <div class="grid">
@@ -335,7 +337,7 @@ microservice twoSum(n, target) {
               : `The interpreter crashed: ${data.crash}`,
           );
         } else {
-          done(data.runs, ms);
+          done(data.runs, ms, data.runtime);
         }
       }
     };
@@ -374,10 +376,11 @@ microservice twoSum(n, target) {
   }
 
   // Runs `sources` on the worker, `out` and `diagnostics` show the results and
-  // `done(runs, ms)` fills in `out`. With `asm`, it also shows the first
-  // program's assembly. `again` is run or runTests, whichever asked, for when
-  // the worker has to start first.
-  function submit(again, { sources, stdin = "", out, diagnostics, asm, done }) {
+  // `done(runs, ms, runtime)` fills in `out`. With `asm`, it also shows the
+  // first program's assembly, and `runtime` names a microservice to infer the
+  // O() of. `again` is run or runTests, whichever asked, for when the worker
+  // has to start first.
+  function submit(again, { sources, stdin = "", runtime = null, out, diagnostics, asm, done }) {
     if (!ready) {
       queued = again;
       return;
@@ -410,7 +413,7 @@ microservice twoSum(n, target) {
         restart(out, `Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
       }, TIMEOUT_MS),
     };
-    worker.postMessage({ id, sources, stdin, asm: Boolean(asm) });
+    worker.postMessage({ id, sources, stdin, asm: Boolean(asm), runtime });
   }
 
   function run() {
@@ -440,6 +443,7 @@ microservice twoSum(n, target) {
     const code = solution.value;
     submit(runTests, {
       sources: TESTS.map((test) => withTest(code, test)),
+      runtime: "twoSum",
       out: tests,
       diagnostics: testDiagnostics,
       done: showTests,
@@ -455,7 +459,16 @@ microservice twoSum(n, target) {
     tests.replaceChildren(...TESTS.map((test) => line(`· ${describe(test)}\n`)));
   }
 
-  function showTests(runs, ms) {
+  // A hash map solves Two Sum in O(n), and btw doesn't have one. Passing in
+  // less than O(n) means skipping elements: only hardcoded answers do that.
+  function beats(degree) {
+    if (degree === null) return "Beats ?% of hash maps.";
+    if (degree[0] < 1) return "Beats 100% of hash maps. Hardcoded, huh?";
+    if (degree[0] === 1 && degree[1] === 0) return "Beats 100% of hash maps. How?";
+    return "Beats 0% of hash maps.";
+  }
+
+  function showTests(runs, ms, runtime) {
     status.textContent = `Done in ${ms} ms.`;
     if (runs[0].exit === null) {
       tests.replaceChildren(line("Errors blocked the run.", "note"));
@@ -483,6 +496,9 @@ microservice twoSum(n, target) {
         "note",
       ),
     );
+    if (passed === TESTS.length && runtime) {
+      tests.append(line(`\nAccepted. Runtime: ${runtime.text}. ${beats(runtime.degree)}`, "pass"));
+    }
   }
 
   async function fetchExample(file) {
@@ -500,6 +516,7 @@ microservice twoSum(n, target) {
       ]);
       source.value = text;
       stdin.value = input;
+      save("playground");
     } catch (error) {
       status.textContent = `Couldn't load the example: ${error.message}`;
       return;
@@ -542,25 +559,129 @@ microservice twoSum(n, target) {
       } else if (event.key === "Tab" && !event.shiftKey) {
         event.preventDefault();
         textarea.setRangeText("    ", textarea.selectionStart, textarea.selectionEnd, "end");
+        textarea.dispatchEvent(new Event("input")); // setRangeText doesn't fire it
       }
     });
   }
   editor(source, run);
   editor(solution, runTests);
 
-  const tabs = document.querySelectorAll('[role="tab"]');
-  for (const tab of tabs) {
-    tab.addEventListener("click", () => {
-      for (const other of tabs) {
-        other.setAttribute("aria-selected", other === tab);
-        document.getElementById(other.getAttribute("aria-controls")).hidden = other !== tab;
-      }
-    });
+  // Each tab's editors by the name a share link stores them under, and where
+  // the tab says a link is broken.
+  const TABS = {
+    playground: { fields: { code: source, stdin }, out: output },
+    "two-sum": { fields: { code: solution }, out: tests },
+  };
+
+  function contents(tab) {
+    return Object.fromEntries(Object.entries(TABS[tab].fields).map(([name, field]) => [name, field.value]));
   }
+
+  function fill(tab, data) {
+    for (const [name, field] of Object.entries(TABS[tab].fields)) field.value = data[name] ?? "";
+  }
+
+  // Each tab keeps its draft in localStorage, which a private window can
+  // refuse: then the page just forgets.
+  function save(tab) {
+    try {
+      localStorage.setItem(`btw:${tab}`, JSON.stringify(contents(tab)));
+    } catch {}
+  }
+
+  function restore(tab) {
+    try {
+      const draft = localStorage.getItem(`btw:${tab}`);
+      if (draft === null) return false;
+      fill(tab, JSON.parse(draft));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  for (const [tab, { fields }] of Object.entries(TABS)) {
+    for (const field of Object.values(fields)) {
+      field.addEventListener("input", () => {
+        save(tab);
+        // After Share, the link is still in the address bar, and a reload
+        // would open it over these edits.
+        if (location.hash.includes("/")) history.replaceState(null, "", `#${tab}`);
+      });
+    }
+  }
+
+  // A tab's address is its panel's id, so #two-sum opens Two Sum.
+  const tabs = document.querySelectorAll('[role="tab"]');
+  function selectTab(id) {
+    for (const tab of tabs) {
+      const panel = tab.getAttribute("aria-controls");
+      tab.setAttribute("aria-selected", panel === id);
+      document.getElementById(panel).hidden = panel !== id;
+    }
+    history.replaceState(null, "", `#${id}`);
+  }
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => selectTab(tab.getAttribute("aria-controls")));
+  }
+
+  // A share link is #tab/data, where data is the tab's contents as JSON,
+  // deflated by the browser's CompressionStream and in base64url.
+  async function pack(data) {
+    const stream = new Blob([JSON.stringify(data)]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+  }
+
+  async function unpack(text) {
+    const binary = atob(text.replaceAll("-", "+").replaceAll("_", "/"));
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  async function share(tab) {
+    history.replaceState(null, "", `#${tab}/${await pack(contents(tab))}`);
+    try {
+      await navigator.clipboard.writeText(location.href);
+      status.textContent = "Link copied.";
+    } catch {
+      status.textContent = "The link is in the address bar.";
+    }
+  }
+  for (const button of document.querySelectorAll("[data-share]")) {
+    button.addEventListener("click", () => share(button.dataset.share));
+  }
+
+  // Opens the tab the address names. A share link also fills it, over its
+  // draft, runs the playground, and returns the tab.
+  async function openLink() {
+    const [tab, data] = location.hash.slice(1).split("/");
+    if (!(tab in TABS)) return null;
+    selectTab(tab);
+    if (!data) return null;
+    try {
+      fill(tab, await unpack(data));
+      save(tab);
+      if (tab === "playground") run();
+    } catch {
+      TABS[tab].out.replaceChildren(line("That share link is broken. Was it cut off?", "stderr"));
+    }
+    return tab;
+  }
+  window.addEventListener("hashchange", openLink);
 
   listTests();
   startWorker();
-  loadExample("p0_fizzbuzz", false);
+  restore("two-sum");
+  const hasDraft = restore("playground");
+  openLink().then((tab) => {
+    if (tab === "playground") return; // the link ran its code, or said it's broken
+    if (hasDraft) run();
+    else loadExample("p0_fizzbuzz", false);
+  });
 </script>
 </body>
 </html>

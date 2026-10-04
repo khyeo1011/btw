@@ -5,7 +5,7 @@ playground stops for running too long still gets its roast."""
 import io
 import json
 
-from btw import driver
+from btw import ast, bigo, driver, hovers
 from btw.printing import format_pretty, format_summary
 
 PATH = "playground.btw"
@@ -56,3 +56,18 @@ def asm(source: str) -> str:
     e501 = [d for d in diagnostics if d.code == "E501"]
     blocks = [format_pretty(d, PATH, source, False) for d in e501]
     return "\n\n".join(blocks) or "Errors blocked the build."
+
+
+def runtime(source: str, name: str) -> str:
+    """Return JSON: microservice `name`'s degree as the hover infers it,
+    [poly, log] or null for O(?), and its O(). null when there's no such
+    microservice. The Two Sum verdict quotes it."""
+    try:
+        program, _, _ = driver.check(source, PATH)
+    except Exception:
+        return "null"
+    for item in program.items:
+        if isinstance(item, ast.Microservice) and item.name.name == name:
+            degree = hovers.inferred(program, item)
+            return json.dumps({"degree": degree, "text": bigo.format_complexity(degree)})
+    return "null"
