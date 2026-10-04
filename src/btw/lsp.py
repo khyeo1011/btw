@@ -4,9 +4,10 @@ Diagnostics come from `driver.check` (lex, parse, check, Big O, suppression;
 never codegen) on every didOpen, didChange and didSave. Hover text lives in
 `hovers.py`. Code actions turn the diagnostics' quick fixes into edits,
 semantic tokens give editors highlighting without a syntax file, and inlay
-hints show the inferred O() of a microservice without an SLA. stdout is the
-protocol channel, so `main` points `sys.stdout` at stderr before serving: a
-stray print can't corrupt the stream.
+hints show the inferred O() of a microservice without an SLA. Completion
+offers keyword snippets and the names in scope, and go to definition jumps to
+the symbol's declaration. stdout is the protocol channel, so `main` points
+`sys.stdout` at stderr before serving: a stray print can't corrupt the stream.
 """
 
 from __future__ import annotations
@@ -393,6 +394,116 @@ def hover(ls: LanguageServer, params: types.HoverParams) -> types.Hover | None:
         contents=types.MarkupContent(kind=types.MarkupKind.Markdown, value=text),
         range=to_range(lines, span, encoding(ls)),
     )
+
+
+# Completion and go to definition
+
+
+SNIPPETS = {
+    "i use arch btw": "i use arch btw",
+    "serve localhost:3000": "serve localhost:3000 {\n\t$0\n}",
+    ":wq": ":wq",
+    "microservice": "microservice ${1:name}($2) {\n\t$0\n}",
+    "npm install": "npm install ${1:name} = $0",
+    "npm install -g": "npm install -g ${1:NAME} = $0",
+    "git push --force": "git push --force ${1:name} = $0",
+    "git revert": "git revert $0",
+    "git log": "git log $0",
+    "sudo": "sudo ",
+    "console.log": "console.log $0",
+    "vibe check": "vibe check $1 {\n\t$0\n}",
+    "skill issue": "skill issue {\n\t$0\n}",
+    "doomscroll": "doomscroll $1 {\n\t$0\n}",
+    "touch grass": "touch grass",
+    "ship it": "ship it $0",
+    "LGTM": "LGTM",
+    "404": "404",
+}
+
+COMPLETION_KINDS = {
+    SymbolKind.LOCAL: types.CompletionItemKind.Variable,
+    SymbolKind.GLOBAL: types.CompletionItemKind.Variable,
+    SymbolKind.CONST: types.CompletionItemKind.Constant,
+    SymbolKind.PARAM: types.CompletionItemKind.Variable,
+    SymbolKind.MICROSERVICE: types.CompletionItemKind.Function,
+}
+
+
+def locals_before(block: ast.Block, pos: Pos) -> Iterator[Symbol]:
+    """Locals declared in `block`, or in a nested block around `pos`, before `pos`."""
+    for stmt in block.stmts:
+        if stmt.span.start >= pos:
+            return
+        declared = isinstance(stmt, ast.VarDecl) and stmt.span.end <= pos
+        if declared and isinstance(stmt.name.sym, Symbol):
+            yield stmt.name.sym
+        for f in fields(stmt):
+            child = getattr(stmt, f.name)
+            while isinstance(child, ast.If) and not child.then.span.contains(pos):
+                child = child.else_  # walk down `skill issue vibe check` chains
+            if isinstance(child, ast.If):
+                child = child.then
+            if isinstance(child, ast.Block) and child.span.contains(pos):
+                yield from locals_before(child, pos)
+
+
+def in_scope(source: str, pos: Pos) -> list[Symbol]:
+    """Every name usable at `pos`: globals, constants and microservices, then the
+    parameters and earlier locals of the microservice or `serve` around it."""
+    program, symbols, _ = driver.check(source, "")
+    names = list(symbols.globals.values())
+    for item in program.items:
+        if isinstance(item, ast.Microservice | ast.Serve) and item.body.span.contains(pos):
+            if isinstance(item, ast.Microservice):
+                names += [p.sym for p in item.params if isinstance(p.sym, Symbol)]
+            names += locals_before(item.body, pos)
+    return names
+
+
+def completions(source: str, pos: Pos) -> list[types.CompletionItem]:
+    items = [
+        types.CompletionItem(
+            label=label,
+            kind=types.CompletionItemKind.Keyword,
+            insert_text=snippet,
+            insert_text_format=types.InsertTextFormat.Snippet,
+        )
+        for label, snippet in SNIPPETS.items()
+    ]
+    for sym in in_scope(source, pos):
+        is_ms = sym.kind is SymbolKind.MICROSERVICE
+        detail = f"microservice/{sym.arity}" if is_ms else sym.ty.value
+        kind = COMPLETION_KINDS[sym.kind]
+        items.append(types.CompletionItem(label=sym.name, kind=kind, detail=detail))
+    return items
+
+
+@server.feature(types.TEXT_DOCUMENT_COMPLETION)
+@guarded
+def completion(ls: LanguageServer, params: types.CompletionParams) -> list[types.CompletionItem]:
+    source = ls.workspace.get_text_document(params.text_document.uri).source
+    return completions(source, from_client(source_lines(source), params.position, encoding(ls)))
+
+
+def definition(source: str, pos: Pos) -> Span | None:
+    """The declaration of the name under `pos`: the symbol's `decl_span`."""
+    program, _, _ = driver.check(source, "")
+    node = hovers.name_at(program, pos)
+    if node is None or not isinstance(node.sym, Symbol):
+        return None
+    return node.sym.decl_span
+
+
+@server.feature(types.TEXT_DOCUMENT_DEFINITION)
+@guarded
+def goto_definition(ls: LanguageServer, params: types.DefinitionParams) -> types.Location | None:
+    uri = params.text_document.uri
+    source = ls.workspace.get_text_document(uri).source
+    lines = source_lines(source)
+    span = definition(source, from_client(lines, params.position, encoding(ls)))
+    if span is None:
+        return None
+    return types.Location(uri=uri, range=to_range(lines, span, encoding(ls)))
 
 
 def main() -> None:
