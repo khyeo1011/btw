@@ -95,7 +95,7 @@ def test_variables_count_commits():
     assert text_at(9, "t =", source=HISTORY).endswith("declared on line 9 · 2 commits")
     assert text_at(2, "g", source=HISTORY).endswith("declared on line 2 · 2 commits")
     assert text_at(12, "many", source=HISTORY).endswith(" · 16 commits")  # history keeps 16
-    assert [d.code for d in driver.check(HISTORY, "history.btw")[2]] == ["W100"]  # the sudo
+    assert [d.code for d in driver.check(HISTORY, "history.btw")[2]] == ["W100", "W226"]  # the sudo, the first t
 
 
 def test_constant():

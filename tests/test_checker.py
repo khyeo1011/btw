@@ -102,7 +102,9 @@ def test_string_keeps_string_type_in_print():
 
 
 def test_sibling_blocks_get_their_own_symbols():
-    src = wrap("vibe check LGTM {\n  npm install i = 1\n}\nnpm install i = LGTM\nconsole.log i")
+    src = wrap(
+        "vibe check LGTM {\n  npm install i = 1\n  console.log i\n}\nnpm install i = LGTM\nconsole.log i"
+    )
     program, symbols, diags = run_check(src)
     assert diags == []
     first, second = symbols.frames["serve"]
@@ -142,7 +144,7 @@ def test_e409_extra_serves():
 
 def test_duplicate_global_and_global_microservice_clash():
     src = wrap(
-        "console.log 1",
+        "console.log a",
         top="npm install a = 1\nnpm install a = 2\nmicroservice a() {\n}\n",
     )
     assert short(run_check(src)[2]) == [
@@ -152,7 +154,7 @@ def test_duplicate_global_and_global_microservice_clash():
 
 
 def test_global_initializer_sees_only_earlier_globals():
-    src = wrap("console.log A", top="npm install A = A\nnpm install B = A\n")
+    src = wrap("console.log B", top="npm install A = A\nnpm install B = A\n")
     assert messages(src) == [
         "Error 404: variable `A` not found. Did you forget to `npm install` it?"
     ]
@@ -164,7 +166,7 @@ def test_global_initializer_microservice_as_value():
 
 
 def test_param_shadowing_a_global():
-    src = wrap("console.log f(1)", top="npm install n = 1\nmicroservice f(n) {\n}\n")
+    src = wrap("console.log f(n)", top="npm install n = 1\nmicroservice f(n) {\n}\n")
     assert short(run_check(src)[2]) == [
         "3:16 E409 npm ERR! `n` is already installed. Use `git push --force` to update it."
     ]
@@ -184,7 +186,7 @@ def test_redeclared_name_keeps_first_binding():
 
 
 def test_use_before_declaration():
-    assert codes(wrap("console.log x\nnpm install x = 1")) == ["E404"]
+    assert codes(wrap("console.log x\nnpm install x = 1")) == ["E404", "W226"]
 
 
 def test_six_params_fine_seven_monolith():
@@ -407,8 +409,53 @@ def test_history_targets():
     )
     _, symbols, diags = run_check(src)
     assert [(d.code, d.span) for d in diags] == [
+        ("W226", Span(Pos(2, 12), Pos(2, 13))),  # H
         ("E405", Span(Pos(6, 2), Pos(6, 11))),
         ("E405", Span(Pos(7, 2), Pos(7, 14))),
     ]
     tracked = sorted(sym.name for sym in symbols.all if sym.tracked)
     assert tracked == ["G", "b", "s"]
+
+
+# P2: unused variables
+
+
+def test_w226_on_the_name_of_locals_globals_and_constants():
+    src = wrap(
+        "npm install x = 1\nvibe check LGTM {\n  npm install k = 2\n}",
+        top="npm install G = 1\nnpm install -g C = 1\n",
+    )
+    assert short([d for d in run_check(src)[2] if d.code == "W226"]) == [
+        "2:13 W226 226 IM Used: `G` was installed but never used. `npm prune` it.",
+        "3:16 W226 226 IM Used: `C` was installed but never used. `npm prune` it.",
+        "5:13 W226 226 IM Used: `x` was installed but never used. `npm prune` it.",
+        "7:15 W226 226 IM Used: `k` was installed but never used. `npm prune` it.",
+    ]
+
+
+@pytest.mark.parametrize(
+    "use",
+    ["console.log x", "git push --force x = 2", "git revert x", "git log x", "console.log x(1)"],
+    ids=["read", "push", "revert", "log", "called"],
+)
+def test_any_mention_is_a_use(use):
+    assert "W226" not in codes(wrap(f"npm install x = 1\n{use}"))
+
+
+def test_parameters_are_exempt():
+    assert codes(wrap("console.log f(1)", top="microservice f(n) O(1) {\n}\n")) == []
+
+
+def test_no_w226_on_a_declaration_with_an_error():
+    assert codes(wrap('npm install x = "text"')) == ["E415"]
+    assert codes(wrap("npm install x = y")) == ["E404"]
+
+
+def test_no_w226_in_a_file_with_a_syntax_error():
+    src = wrap("npm install x = 2\nif (x > 1) {\n  console.log x\n}")
+    assert [d.code for d in driver.check(src, "t.btw")[2]] == ["E400"]
+
+
+def test_w226_is_suppressible():
+    src = wrap("// works on my machine\nnpm install x = 1")
+    assert [d.code for d in driver.check(src, "t.btw")[2]] == ["W200"]

@@ -1,1 +1,2 @@
 2:20: error[E404]: Error 404: variable `B` not found. Did you forget to `npm install` it?
+3:16: warning[W226]: 226 IM Used: `B` was installed but never used. `npm prune` it.
