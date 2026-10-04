@@ -77,6 +77,10 @@
 //              ^^^^^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
 //                           ^^^^^ - constant.language.btw
 //                                   ^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw
+    npm install n = curl
+//                  ^^^^ support.function.btw
+    npm install m = curly
+//                  ^^^^^ - support.function.btw
     console.logger(serveX)
 //  ^^^^^^^^^^^^^^ - support.function.btw
 //                 ^^^^^^ - keyword.control.directive.btw keyword.control.btw storage.type.btw keyword.other.btw support.function.btw constant.language.btw

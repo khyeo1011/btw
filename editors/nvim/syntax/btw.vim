@@ -30,6 +30,7 @@ syn match btwOther "\<git[ \t]\+log\>"
 syn keyword btwOther sudo
 
 syn match btwConsoleLog "\<console\.log\>"
+syn keyword btwConsoleLog curl
 
 syn keyword btwBoolean LGTM
 syn match btwBoolean "\<404\d\@!"
