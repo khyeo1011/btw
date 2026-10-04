@@ -43,6 +43,9 @@ decided where that spec is silent, the golden test list, and open questions.
 - **Exit code 2** also covers a component that isn't implemented yet (a
   one-line `btw: ... is not implemented yet`) and internal errors (E500 plus a
   traceback on stderr).
+- **Exit code 141** when stdout's reader goes away (`btw run x.btw | head`):
+  no output on stderr, the same as a native binary killed by SIGPIPE. It's
+  not an E500.
 - **`tokens`** prints `lexer.format_tokens`: one token per line as
   `KIND "text" LINE:COL` (NOTES-lexer). **`parse`** prints one node or field
   per line, indented two spaces per level, with each node's span.

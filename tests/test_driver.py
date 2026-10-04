@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 from btw import ast
 from btw.cli import dump
 from btw.diagnostics import Diagnostic, Severity
@@ -62,3 +65,28 @@ def test_parse_dump_is_indented_with_spans():
         "  trailing_span: None",
         "  comments: []",
     ]
+
+
+def test_closed_stdout_exits_quietly_like_sigpipe(tmp_path):
+    # More output than a pipe buffer holds, so a write fails once the reader is gone.
+    source = tmp_path / "many.btw"
+    source.write_text(
+        "i use arch btw\n"
+        "serve localhost:3000 {\n"
+        "    npm install i = 1\n"
+        "    doomscroll i <= 200000 {\n"
+        "        console.log i\n"
+        "        git push --force i = i + 1\n"
+        "    }\n"
+        "}\n"
+        ":wq\n"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-m", "btw", "run", str(source)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdout.readline() == b"1\n"
+    process.stdout.close()
+    assert process.stderr.read() == b""
+    assert process.wait() == 141
