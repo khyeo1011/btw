@@ -11,6 +11,14 @@ All notable changes to btw are recorded here. The format follows
 - `btw loadtest FILE NAME`: runs a microservice for n = 8 to 1024 in the
   interpreter, fits the measured Big O and compares it with the static one
   and the SLA. The PM is notified when the SLA is broken.
+- Smarter Big O: loops to a fixed bound are O(1), halving or doubling loops
+  are O(log n), and log and exponential SLAs are checked.
+- W226 for unused variables.
+- LSP completion and go to definition.
+- The browser playground at [btw.sebastianyeo.dev](https://btw.sebastianyeo.dev),
+  running btw on Pyodide.
+- `demo/`: `fizzbuzz.btw`, `roast.btw` (every roast that fits in one file),
+  `bigo.btw` and `bench.btw`.
 
 ## [0.1.0] - unreleased
 

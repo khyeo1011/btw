@@ -1,0 +1,43 @@
+i use arch btw
+// TODO: a sieve, once arrays get past code review
+microservice is_prime(n) O(n) {
+    vibe check n < 2 { ship it 0 }
+    npm install d = 2
+    doomscroll d * d <= n {
+        vibe check n % d == 0 { ship it 0 }
+        git push --force d = d + 1
+    }
+    ship it 1
+}
+microservice count_primes(limit) O(n^2) {
+    npm install count = 0
+    npm install n = 2
+    doomscroll n < limit {
+        git push --force count = count + is_prime(n)
+        git push --force n = n + 1
+    }
+    ship it count
+}
+microservice collatz(n) O(n) {
+    npm install steps = 0
+    doomscroll n != 1 {
+        vibe check n % 2 == 0 { git push --force n = n / 2 }
+        skill issue { git push --force n = 3 * n + 1 }
+        git push --force steps = steps + 1
+    }
+    ship it steps
+}
+serve localhost:3000 {
+    console.log "primes below 50000:"
+    console.log count_primes(50000)
+    npm install best = 0
+    npm install i = 1
+    doomscroll i < 30000 {
+        npm install s = collatz(i)
+        vibe check s > best { git push --force best = s }
+        git push --force i = i + 1
+    }
+    console.log "longest collatz chain below 30000:"
+    console.log best
+}
+:wq

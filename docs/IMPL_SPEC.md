@@ -71,7 +71,7 @@ btw-lang/
 ├── editors/
 │   ├── vscode/                   package.json, extension.js, language-configuration.json, syntaxes/
 │   └── nvim/                     btw.lua, syntax/btw.vim
-└── demo/                         roast.btw, bigo.btw, fizzbuzz.btw (written Sunday morning)
+└── demo/                         roast.btw, bigo.btw, fizzbuzz.btw, bench.btw (written Sunday morning)
 ```
 
 # 3. CLI

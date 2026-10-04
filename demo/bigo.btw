@@ -1,0 +1,84 @@
+i use arch btw
+// TODO: honest SLAs. The checker agrees with all three.
+microservice dice(n) O(1) {
+    npm install pips = 0
+    npm install roll = 1
+    doomscroll roll <= 6 {
+        git push --force pips = pips + roll
+        git push --force roll = roll + 1
+    }
+    ship it pips + n
+}
+microservice bits(n) O(log n) {
+    npm install count = 0
+    doomscroll n > 0 {
+        git push --force n = n / 2
+        git push --force count = count + 1
+    }
+    ship it count
+}
+microservice total(n) O(n) {
+    npm install sum = 0
+    npm install i = 1
+    doomscroll i <= n {
+        git push --force sum = sum + i
+        git push --force i = i + 1
+    }
+    ship it sum
+}
+// TODO: dishonest SLAs. Each one gets roasted.
+microservice pairs(n) O(n) {
+    npm install count = 0
+    npm install i = 0
+    doomscroll i < n {
+        npm install j = 0
+        doomscroll j < n {
+            git push --force count = count + 1
+            git push --force j = j + 1
+        }
+        git push --force i = i + 1
+    }
+    ship it count
+}
+microservice id(n) O(n^2) {
+    ship it n
+}
+microservice root(n) O(sqrt n) {
+    npm install i = 1
+    doomscroll i * i <= n {
+        git push --force i = i + 1
+    }
+    ship it i - 1
+}
+microservice fib(n) O(2^n) {
+    vibe check n < 2 { ship it n }
+    ship it fib(n - 1) + fib(n - 2)
+}
+microservice triple(n) {
+    ship it n * 3
+}
+// TODO: where the checker is wrong. Ask btw loadtest.
+// works on my machine
+microservice search(n) O(log n) {
+    npm install lo = 0
+    npm install hi = n
+    doomscroll lo < hi {
+        npm install mid = (lo + hi) / 2
+        vibe check mid < n - 1 { git push --force lo = mid + 1 }
+        skill issue { git push --force hi = mid }
+    }
+    ship it lo
+}
+microservice grid(n) O(n) {
+    npm install cells = 0
+    doomscroll cells < n * n {
+        git push --force cells = cells + 1
+    }
+    ship it cells
+}
+serve localhost:3000 {
+    console.log dice(1) + bits(1024) + total(10) + pairs(4)
+    console.log id(1) + root(16) + fib(10) + triple(1)
+    console.log search(100) + grid(5)
+}
+:wq

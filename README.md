@@ -1,11 +1,28 @@
 # btw
 
+[![CI](https://github.com/khyeo1011/btw/actions/workflows/ci.yml/badge.svg)](https://github.com/khyeo1011/btw/actions/workflows/ci.yml)
+
 A joke programming language built from dev memes, with a real compiler: a type
 checker, a Big O checker, an interpreter, an x86-64 native backend and a
 language server that roasts you in VS Code and Neovim.
 
 <!-- Screenshot placeholder: replace with a capture of VS Code showing an E417 squiggle and a hover. -->
 ![screenshot placeholder](docs/screenshot.png)
+
+## Try it
+
+**[btw.sebastianyeo.dev](https://btw.sebastianyeo.dev)** is the playground:
+the real checker and interpreter, running in your browser on Pyodide. Nothing
+to install. Pick an example or write your own, then press Ctrl+Enter.
+
+To run it locally instead, clone the repo and, with [uv](https://docs.astral.sh/uv/):
+
+```
+uv sync
+uv run btw run demo/fizzbuzz.btw     # FizzBuzz
+uv run btw check demo/roast.btw      # get roasted 82 times
+uv run btw check demo/bigo.btw       # the Big O checker
+```
 
 ## FizzBuzz
 
@@ -24,8 +41,8 @@ serve localhost:3000 {
 :wq
 ```
 
-`uv run btw run tests/golden/p0_fizzbuzz.btw` and the native build
-(`uv run btw build tests/golden/p0_fizzbuzz.btw -o fizzbuzz && ./fizzbuzz`) print:
+`uv run btw run demo/fizzbuzz.btw` and the native build
+(`uv run btw build demo/fizzbuzz.btw -o fizzbuzz && ./fizzbuzz`) print:
 
 ```
 1
@@ -44,6 +61,40 @@ Fizz
 14
 FizzBuzz
 ```
+
+## Demos
+
+| File                | Try                                                     | What it shows                                                                                                                                       |
+| ------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `demo/fizzbuzz.btw` | `btw run`, `btw build`                                  | The program above                                                                                                                                   |
+| `demo/roast.btw`    | `btw check`                                             | Every roast that fits in one file: 82 diagnostics in 147 lines                                                                                      |
+| `demo/bigo.btw`     | `btw check`, then `btw loadtest demo/bigo.btw grid`     | One microservice per Big O verdict, plus two the static checker gets wrong and `btw loadtest` catches                                               |
+| `demo/bench.btw`    | `time btw run`, then `btw build` and time the binary    | Counts primes below 50,000 and finds the longest Collatz chain below 30,000. Prints 5133 and 307                                                    |
+
+A few roasts can't share a file, so `roast.btw` picks one of each pair: it has
+E426 (no arch line first) instead of W208 (a second arch line), and E408 (no
+`:wq`) instead of E410 (code after `:wq`). It has a `serve`, so no E503, and
+any E400 turns off W226 for the whole file. The runtime roasts (Language
+Spec 10) need a program that compiles, so they're in `tests/golden/`.
+`bigo.btw` has a soft error on purpose (E417 on `pairs`), so `btw run` refuses
+it, but `btw loadtest` doesn't.
+
+## By the numbers
+
+|              |                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| **1,150×**   | native speedup on `demo/bench.btw`: 14.2 s in the interpreter, 12.4 ms as a binary               |
+| **82**       | diagnostics from `demo/roast.btw`, a 147-line file                                               |
+| **50**       | diagnostic messages, under 31 HTTP status codes                                                  |
+| **22**       | foreign keywords roasted on sight (`if`, `return`, `print`, `null`, ...)                         |
+| **1,397**    | tests, run by CI on every pull request, in about 20 s                                            |
+| **94**       | golden programs. Each one that compiles is run in the interpreter and as a native binary         |
+| **5,032**    | lines of Python in the compiler, plus 102 lines of C runtime                                     |
+| **1**        | runtime dependency (pygls, for the language server)                                              |
+| **5**        | TODO comments allowed per file. The 6th fails the build                                          |
+
+Timings are from an AMD Ryzen 9 9950X3D; the native time is the mean of 50
+runs.
 
 ## Keywords
 
@@ -89,6 +140,29 @@ Over-claiming is W417 ("Technically correct, but this is O(1). Sandbagging your
 estimates?"), a missing annotation is W102, recursion is W508 ("Complexity:
 O(?). The halting problem is a skill issue.") and `O(sqrt n)` is W203 ("I can't
 verify O(sqrt n). I'll take your word for it.").
+
+### Load test
+
+The static checker can be wrong, so `btw loadtest FILE NAME` measures instead:
+it calls microservice NAME in the interpreter for n = 8 to 1024, counts loop
+iterations and calls, and fits the slope (Language Spec 9.7). `grid` in
+`demo/bigo.btw` loops `doomscroll cells < n * n`, which the static checker
+counts as n trips:
+
+```
+$ uv run btw loadtest demo/bigo.btw grid
+n = 8: 65 steps
+n = 16: 257 steps
+...
+n = 1024: 1048577 steps
+static O(n). The static checker was being optimistic.
+measured O(n^2.00). Your SLA says O(n). The PM has been notified.
+```
+
+It catches the opposite mistake too. `search` in the same file is a `lo`/`hi`
+binary search, statically O(n), and measures `O(n^0.20). Your SLA says
+O(log n). LGTM.` Diagnostics go to stderr, and soft errors like E417 don't
+block it.
 
 ### sudo constants
 
@@ -148,6 +222,7 @@ uv run btw check FILE.btw [--format short]      # diagnostics only
 uv run btw run FILE.btw                         # interpret
 uv run btw build FILE.btw [-o OUT] [--keep-asm] # native binary via gcc
 uv run btw asm FILE.btw [--annotate]            # x86-64 assembly (--annotate: source lines)
+uv run btw loadtest FILE.btw NAME [--args 1,n]  # measure a microservice's Big O
 uv run btw lsp                                  # language server (also btw-lsp)
 ```
 
@@ -168,8 +243,10 @@ releases are made, and `CHANGELOG.md` what each one changed.
 ## Editor setup
 
 Both editors start the same server, `btw-lsp`, over stdio. It reports the same
-diagnostics as `btw check` on every edit and shows hover text for keywords,
-names, Big O annotations and TODOs. More LSP features are in progress.
+diagnostics as `btw check` on every edit and has hover text for keywords,
+names, Big O annotations and TODOs, quick fixes (Add --force, Run with sudo,
+Update SLA, Exit Vim, ...), completion, go to definition, semantic tokens and
+inlay hints.
 
 ### VS Code
 
@@ -253,7 +330,7 @@ uv run pytest --tier 0           # golden tests for P0 only
 uv run pytest -k p0_fizzbuzz     # one golden test
 ```
 
-- **Golden tests.** `tests/golden/` holds 81 programs, written by hand from the
+- **Golden tests.** `tests/golden/` holds 94 programs, written by hand from the
   spec and reviewed by a human, with sidecars: `.diag` (expected
   `btw check --format short` output), `.out`, `.err` and `.exit`. The runner
   compares the diagnostics, then runs the interpreter and compares stdout,
