@@ -1,1 +1,1 @@
-2:14: warning[W102]: microservice `count` has no SLA. Inferred: O(n).
+2:14: warning[W102]: microservice `count` has no SLA. Inferred: O(n). The PM is going to ask, you know.

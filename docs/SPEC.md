@@ -284,26 +284,49 @@ The parser reports E408 itself, because only it knows the last token: when the f
 
 **Annotations**
 
-| You write                                                  | Means        | Checked  |
-| ---------------------------------------------------------- | ------------ | -------- |
-| `O(1)`                                                     | degree 0     | yes      |
-| `O(n)`, with any single name inside                        | degree 1     | yes      |
-| `O(n^2)`, `O(n^3)` and so on                               | degree k     | yes      |
-| `O(log n)`, `O(n log n)`, `O(2^n)`, `O(n!)`, anything else | unverifiable | no, W203 |
+A degree is a pair (k, j), meaning O(n^k · log^j n). Degrees compare by k first, then j, so O(n) is more than O(log² n) and O(n log n) is between O(n) and O(n²).
 
-**Inference** (the degree of each microservice)
+| You write                                                         | Means                               | Checked                           |
+| ----------------------------------------------------------------- | ----------------------------------- | --------------------------------- |
+| `O(1)`                                                            | (0, 0)                              | yes                               |
+| `O(n)`, with any single name inside                               | (1, 0)                              | yes                               |
+| `O(n^2)`, `O(n^3)` and so on                                      | (k, 0)                              | yes                               |
+| `O(log n)`, `O(log^2 n)` and so on                                | (0, j)                              | yes                               |
+| `O(n log n)`, `O(n^2 log n)`, `O(n^k log^j n)`, one name for both | (k, j)                              | yes                               |
+| `O(c^n)` with a literal c of at least 2, `O(n!)`                  | superpolynomial, above every (k, j) | yes, always W417 unless recursive |
+| `O(sqrt n)`, `O(n^n)`, `O(log(n))`, `O(n log m)`, anything else   | unverifiable                        | no, W203                          |
+
+**Inference** (the degree of each microservice; + adds pairs, (k, j) + (k', j') = (k + k', j + j'))
 
 ```
-deg(block)                  = max over its statements, or 0 if it's empty
-deg(doomscroll c { B })     = 1 + max(degE(c), deg(B))       the condition runs on every iteration
+deg(block)                  = max over its statements, or (0, 0) if it's empty
+deg(doomscroll c { B })     = trips + max(degE(c), deg(B))   the condition runs on every iteration
 deg(vibe check c T else E)  = max(degE(c), deg(T), deg(E))
 deg(any other statement)    = max over its expressions
-degE(f(args))               = max(degFn(f), degE(args))      P1. In P0 a call costs 0.
-degE(anything else)         = max over sub-expressions; literals and names are 0
+degE(f(args))               = max(degFn(f), degE(args))      P1. In P0 a call costs (0, 0).
+degE(anything else)         = max over sub-expressions; literals and names are (0, 0)
 degFn(f)                    = deg(body of f), computed once and memoized
 recursion                   = f is on a cycle in the call graph (calling itself counts) → UNKNOWN
-UNKNOWN is contagious       : max(UNKNOWN, x) = UNKNOWN and 1 + UNKNOWN = UNKNOWN
+UNKNOWN is contagious       : max(UNKNOWN, x) = UNKNOWN and trips + UNKNOWN = UNKNOWN
 ```
+
+**Trip counts.** A doomscroll runs n times, trips = (1, 0), unless all of these hold for a counter `v`:
+
+- The condition is `v < E`, `v <= E`, `v > E`, `v >= E` or `v != E`, with `v` on either side.
+- `v` is a parameter or a local of the microservice. A global could change in any call, so a global counter runs n times.
+- The body changes `v` exactly once, with a top-level statement (not inside a `vibe check` or a nested doomscroll) `git push --force v = v + c`, `v - c`, `v * c` or `v / c`. A `git revert v` or an `npm install v` in the body counts as a change.
+- `c` is a literal, a negative literal, or a constant. A constant that a `sudo git push --force` or `sudo git revert` changes anywhere in the program isn't a constant here.
+
+Then:
+
+| Step          | Also needs                                                                                                                         | trips            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `+` or `-`    | `E` is a literal or a constant, and the statement right before the loop is `npm install v = literal`                               | (0, 0), O(1)     |
+| `/`           | `c` is at least 2 or at most -2                                                                                                    | (0, 1), O(log n) |
+| `*`           | `c` is at least 2, and the statement right before the loop is `npm install v = literal` with a literal above 0 (0 doubled stays 0) | (0, 1), O(log n) |
+| anything else |                                                                                                                                    | (1, 0), O(n)     |
+
+A loop with trips (0, 0) isn't a nested doomscroll: it doesn't count for E417's related information.
 
 P0 only detects direct self-calls. P1 builds the call graph and finds cycles (Tarjan's SCC, or a depth-first search with an "in progress" mark).
 
@@ -314,14 +337,14 @@ P0 only detects direct self-calls. P1 builds the call graph and finds cycles (Ta
 | k equals d              | None. The hover shows a ✓.                                                                        |                |
 | k is less than d        | E417, soft error: You said O(n), but this is O(n²). Skill issue.                                  | the annotation |
 | k is greater than d     | W417: Technically correct, but this is O(1). Sandbagging your estimates?                          | the annotation |
-| No annotation, d known  | W102: microservice `f` has no SLA. Inferred: O(n).                                                | the name       |
+| No annotation, d known  | W102: microservice `f` has no SLA. Inferred: O(n). The PM is going to ask, you know.              | the name       |
 | d is UNKNOWN            | W508: Complexity: O(?). The halting problem is a skill issue. This replaces the three rows above. | the name       |
-| Unverifiable annotation | W203: I can't verify O(log n). I'll take your word for it.                                        | the annotation |
+| Unverifiable annotation | W203: I can't verify O(sqrt n). I'll take your word for it.                                       | the annotation |
 
-- **Formatting:** degree 0 is `O(1)`, 1 is `O(n)`, 2 is `O(n²)`, 3 is `O(n³)`, 4 and up is `O(n^4)`. Use the annotation's variable name when there is one, `n` otherwise. W203 echoes the annotation's exact source text. Superscripts are output only: the lexer doesn't accept them, so a quick-fix edit (section 11), which inserts source text, writes degrees 2 and 3 as `O(n^2)` and `O(n^3)`.
+- **Formatting:** (0, 0) is `O(1)`. Otherwise the power of n, then the power of log n, each left out when it's 0: `O(n)`, `O(n²)`, `O(n³)`, `O(n^4)`, `O(log n)`, `O(log² n)`, `O(n log n)`, `O(n² log n)`. Powers 2 and 3 are superscripts, 4 and up use `^`. Use the annotation's variable name when there is one, `n` otherwise. W203 echoes the annotation's exact source text. Superscripts are output only: the lexer doesn't accept them, so a quick-fix edit (section 11), which inserts source text, writes powers 2 and 3 as `O(n^2)`, `O(n^3 log^2 n)` and so on.
 - **E417 help line** (CLI pretty mode): try `O(n²)`, then tell the PM it was always the plan. The suggestion uses the inferred degree, formatted as above.
-- **P2 extra:** E417 carries related information pointing at the innermost doomscroll of the deepest nest ("nested doomscroll #2 starts here").
-- **Known limits, say them in Q&A:** every loop counts as n iterations, so `doomscroll (i < 10)` is counted as O(n) and a halving loop is overestimated. It's a teaching heuristic, not a proof.
+- **P2 extra:** E417 carries related information pointing at the innermost doomscroll of the deepest nest. The number counts the nested doomscrolls on that path that run more than O(1) times, k + j of the inferred degree ("nested doomscroll #2 starts here").
+- **Known limits, say them in Q&A:** only the loop shapes above get fewer than n trips, so a `lo`/`hi` binary search is still O(n), and so is a counter changed inside a `vibe check`. A loop whose bound grows inside the microservice also counts as n, so a loop up to a doubled-up `2^n` is inferred O(n): the inferred value is a heuristic, not always an upper bound. That makes an honest `O(2^n)` on such a loop a W417. It doesn't detect infinite loops either. It's a teaching heuristic, not a proof.
 
 ## 9.2 sudo constants (P0)
 
@@ -447,9 +470,9 @@ Messages contain literal backticks around code, exactly as they appear in the Te
 | E502 | error      | P1   | gcc rejected the generated assembly              | Bad gateway: gcc rejected the generated assembly. That's a compiler bug, not a skill issue.                                                                                                                                                                                                                                                                                                                                                                                                                                               | line 1                                                       |                     |
 | E503 | error      | P0   | no `serve` block                                 | Error: no server running. Nothing is listening on `localhost:3000`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `:wq`                                                        |                     |
 | W100 | warning    | P2   | unnecessary sudo                                 | You didn't need sudo for that. Who hurt you?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `sudo`                                                       | Remove sudo         |
-| W102 | warning    | P1   | no Big O annotation                              | microservice `f` has no SLA. Inferred: O(n).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | the name                                                     | Add SLA O(n)        |
+| W102 | warning    | P1   | no Big O annotation                              | microservice `f` has no SLA. Inferred: O(n). The PM is going to ask, you know.                                                                                                                                                                                                                                                                                                                                                                                                                                                            | the name                                                     | Add SLA O(n)        |
 | W200 | warning    | P2   | suppression removed something                    | 200 OK (on my machine): 1 problem suppressed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | the directive                                                |                     |
-| W203 | warning    | P1   | unverifiable annotation                          | I can't verify O(log n). I'll take your word for it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | the annotation                                               |                     |
+| W203 | warning    | P1   | unverifiable annotation                          | I can't verify O(sqrt n). I'll take your word for it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | the annotation                                               |                     |
 | W204 | warning    | P2   | expression statement that does nothing           | This expression does nothing. Like a standup meeting.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | the expression                                               |                     |
 | W208 | warning    | P2   | repeated arch line                               | 208 Already Reported: we know you use Arch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | the repeat                                                   |                     |
 | W226 | warning    | P2   | Unused variable                                  | 226 IM Used: `x` was installed but never used. `npm prune` it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | the name                                                     |                     |
@@ -487,14 +510,14 @@ Diagnostics are sorted by line, then column, then code, and exact duplicates (sa
 | `404`                    | **false.** Truth not found. Also the one number you can't type.                                                                                                                                                                                                             |
 | a TODO comment           | **Comment.** The only kind allowed. Technical debt: 3/5 TODOs used.                                                                                                                                                                                                         |
 | `// works on my machine` | **Suppression.** Silences soft errors on the next statement and ships the bug to everyone else.                                                                                                                                                                             |
-| a Big O annotation       | **SLA.** Checked by counting nested doomscrolls. Verdict: Correct! Are you an arch user as well? (when k = d) / Verdict: Go take a DSA course again. (when k ≠ d, either way) / Verdict: O(?). (recursive) / Verdict: can't verify O(log n). Inferred: O(n). (unverifiable) |
+| a Big O annotation       | **SLA.** Checked by counting nested doomscrolls. Verdict: Correct! Are you an arch user as well? (when k = d) / Verdict: Go take a DSA course again. (when k ≠ d, either way) / Verdict: O(?). (recursive) / Verdict: can't verify O(sqrt n). Inferred: O(n). (unverifiable) |
 | a variable               | `npm install x` · number · declared on line 4 (P2 adds: 3 commits)                                                                                                                                                                                                          |
 | a constant               | `npm install -g LIMIT` · number · global install, modifying it needs `sudo`                                                                                                                                                                                                 |
 | a parameter              | parameter `n` of `total` · number                                                                                                                                                                                                                                           |
 | a microservice name      | `microservice total(n)` · SLA O(n) · inferred O(n) ✓ (or ✗ with the inferred value, or O(?) when recursive)                                                                                                                                                                 |
 | a microservice, no SLA   | `microservice total(n)` · no SLA · I had to read your code to find out it's O(n). Write an SLA.                                                                                                                                                                             |
 
-Recursive microservices and unverifiable annotations (W203) aren't checked, so their hovers get no ✓ or ✗: `microservice search(n)` · SLA O(log n) · inferred O(n). The inferred value is still an upper bound, so a binary search with a doomscroll is technically O(n) as well.
+Recursive microservices and unverifiable annotations (W203) aren't checked, so their hovers get no ✓ or ✗: `microservice root(n)` · SLA O(sqrt n) · inferred O(n).
 
 # 13. Roast backlog (P2, only if you're ahead)
 

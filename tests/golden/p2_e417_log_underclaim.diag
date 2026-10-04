@@ -1,0 +1,1 @@
+2:27: error[E417]: You said O(log n), but this is O(n). Skill issue.

@@ -1,0 +1,23 @@
+i use arch btw
+microservice isqrt(n) O(log n) {
+    npm install step = 1
+    doomscroll step <= n {
+        git push --force step = step * 2
+    }
+    npm install root = 0
+    doomscroll step > 0 {
+        npm install next = root + step
+        vibe check next * next <= n {
+            git push --force root = next
+        }
+        git push --force step = step / 2
+    }
+    ship it root
+}
+serve localhost:3000 {
+    console.log isqrt(0)
+    console.log isqrt(15)
+    console.log isqrt(16)
+    console.log isqrt(1000000)
+}
+:wq

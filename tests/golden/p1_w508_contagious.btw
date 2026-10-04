@@ -1,0 +1,14 @@
+i use arch btw
+microservice down(n) O(n) {
+    vibe check n <= 0 {
+        ship it 0
+    }
+    ship it 1 + down(n - 1)
+}
+microservice twice(n) {
+    ship it down(n) + down(n)
+}
+serve localhost:3000 {
+    console.log twice(5)
+}
+:wq
