@@ -18,6 +18,9 @@ All notable changes to btw are recorded here. The format follows
   commit, as `* 3 (line 7)`. A revert records its own line. Same rules as
   `git log`: E405 on microservice locals, and no `sudo` needed for constants.
 - The playground has a `git blame` example.
+- The playground has a Two Sum tab: write `twoSum(n, target)` and run it
+  against six fixed tests. btw has no arrays, so each test's array is a
+  generated microservice, `nums(i)`.
 - Golden tests can have a `.in` file for stdin.
 
 ### Fixed
