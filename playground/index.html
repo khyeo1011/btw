@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>btw playground</title>
+<link rel="icon" href="data:,">
 <meta name="description" content="Write btw in your browser: the real checker and interpreter, running on Pyodide.">
 <style>
   :root {
@@ -80,6 +81,7 @@
   @media (max-width: 800px) {
     .grid { grid-template-columns: minmax(0, 1fr); }
     textarea { min-height: 280px; }
+    #diagnostics { white-space: pre-wrap; }
   }
   .pane {
     display: flex;
@@ -253,7 +255,16 @@
       queued = true;
       return;
     }
-    if (pending) return;
+    if (pending) {
+      // A new run replaces one still going, like an endless doomscroll.
+      clearTimeout(pending.timer);
+      pending = null;
+      queued = true;
+      worker.terminate();
+      status.textContent = "Restarting the interpreter…";
+      startWorker();
+      return;
+    }
     const id = nextId++;
     runButton.disabled = true;
     status.textContent = "Running…";
