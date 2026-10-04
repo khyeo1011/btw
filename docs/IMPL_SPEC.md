@@ -134,7 +134,7 @@ error[E404]: Error 404: variable `x` not found. Did you forget to `npm install` 
 
 ```
 keywords    ARCH SERVE LOCALHOST WQ NPM_INSTALL_G NPM_INSTALL SUDO GIT_PUSH_FORCE
-            GIT_PUSH_NO_FORCE GIT_REVERT GIT_LOG CONSOLE_LOG VIBE_CHECK SKILL_ISSUE
+            GIT_PUSH_NO_FORCE GIT_REVERT GIT_LOG GIT_BLAME CONSOLE_LOG VIBE_CHECK SKILL_ISSUE
             DOOMSCROLL TOUCH_GRASS MICROSERVICE SHIP_IT LGTM NOT_FOUND CURL
 values      IDENT INT STRING
 operators   PLUS MINUS STAR SLASH PERCENT EQ_EQ BANG_EQ LT LE GT GE
@@ -168,6 +168,7 @@ Every node has a keyword-only `span`, so node fields stay positional: `IntLit(42
 | Print                  | `value`                                                       |                                                                                           |
 | Revert                 | `name` (Var), `sudo`                                          | P2                                                                                        |
 | Log                    | `name` (Var)                                                  | P2                                                                                        |
+| Blame                  | `name` (Var)                                                  | P2                                                                                        |
 | ExprStmt               | `expr`                                                        |                                                                                           |
 | IntLit, BoolLit, StrLit | `value`                                                      | StrLit is already unescaped                                                               |
 | Var                    | `name`                                                        | gets `sym`                                                                                |
@@ -188,7 +189,7 @@ Every node has a keyword-only `span`, so node fields stay positional: `IntLit(42
 | `decl_span`  | For hover, go to definition and related information                   |
 | `owner`      | The microservice's name, "serve" or "global"                          |
 | `arity`      | Microservices only                                                    |
-| `tracked`    | Used by `git revert` or `git log` (P2)                                |
+| `tracked`    | Used by `git revert`, `git log` or `git blame` (P2)                   |
 | `slot`       | Frame slot index, filled in by the codegen for locals and params      |
 
 Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN never produces a type error.
@@ -243,7 +244,7 @@ Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN 
 - Depth counter: increment on microservice entry, decrement on exit, runtime error above 1,000. Call `sys.setrecursionlimit(50_000)` at startup.
 - Runtime errors: flush stdout, write the exact message to stderr, return the exit code.
 - Input (P2): `curl` reads from a binary stdin stream passed to `run`, never from `sys.stdin` directly, so the CLI passes the real stdin and the load test and the playground pass their own.
-- History (P2): a dict from Symbol to a list capped at 16 entries.
+- History (P2): a dict from Symbol to a list of (value, line) commits capped at 16 entries, the line 1-based.
 
 # 10. Native codegen
 
@@ -302,7 +303,7 @@ Every expression leaves exactly one 8-byte value pushed. At every statement boun
 
 | Statement                   | Lowering                                                                                                                                                                         |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| VarDecl, Assign             | Evaluate, `pop rax`, `mov` it into the slot or into `[rip + btw_g_NAME]`. Tracked variables (P2) also call the history runtime: reset on declaration, commit on assignment.      |
+| VarDecl, Assign             | Evaluate, `pop rax`, `mov` it into the slot or into `[rip + btw_g_NAME]`. Tracked variables (P2) also call the history runtime with the statement's 1-based line in `rdx`: reset on declaration, commit on assignment.      |
 | Print a number              | Evaluate, `pop rdi`, `call btw_rt_print_int`                                                                                                                                     |
 | Print a boolean             | Evaluate, `pop rdi`, `call btw_rt_print_bool`                                                                                                                                    |
 | Print a string              | `lea rdi, [rip + .LstrN]`, `call btw_rt_print_str`                                                                                                                               |
@@ -311,8 +312,9 @@ Every expression leaves exactly one 8-byte value pushed. At every statement boun
 | Break                       | `jmp` to the innermost loop's end label. Safe because the temporary stack is empty at every statement boundary.                                                                  |
 | Return                      | Evaluate into `rax` (or `xor eax, eax`), then `jmp .Lret_NAME`                                                                                                                   |
 | ExprStmt                    | Evaluate, then `add rsp, 8` to drop the value                                                                                                                                    |
-| Revert (P2)                 | `mov rdi, ID`, `lea rsi, [rip + NAME_STRING]`, call `btw_rt_hist_revert`, store `rax` into the variable                                                                          |
+| Revert (P2)                 | `mov rdi, ID`, `lea rsi, [rip + NAME_STRING]`, `mov rdx, LINE`, call `btw_rt_hist_revert`, store `rax` into the variable                                                                        |
 | Log (P2)                    | `mov rdi, ID`, `lea rsi, [rip + NAME_STRING]`, `mov rdx` to 1 for a boolean or 0 for a number, call `btw_rt_hist_log`                                                            |
+| Blame (P2)                  | `mov rdi, ID`, `mov rsi` to 1 for a boolean or 0 for a number, call `btw_rt_hist_blame`                                                                                          |
 | Microservice entry and exit | After the prologue: `inc qword ptr [rip + btw_depth]`, `cmp qword ptr [rip + btw_depth], 1000`, `jg` to the overflow handler. Before `leave`: `dec qword ptr [rip + btw_depth]`. No call, so `rax` survives. |
 
 ## 10.6 Stack alignment
@@ -328,10 +330,11 @@ At every function entry, `rsp` is 8 more than a multiple of 16 (the call pushed 
 | `void btw_rt_print_str(const char *s)`                  | puts                                                                                                                                |
 | `void btw_rt_div_zero(void)`                            | Flush stdout, print the exact division message to stderr, exit 1                                                                    |
 | `void btw_rt_stack_overflow(void)`                      | Flush stdout, print the exact stack overflow message to stderr, exit 1                                                              |
-| `void btw_rt_hist_reset(long id, long v)`               | The history becomes just v (P2)                                                                                                     |
-| `void btw_rt_hist_commit(long id, long v)`              | Append v, dropping the oldest past 16 (P2)                                                                                          |
-| `long btw_rt_hist_revert(long id, const char *name)`    | With fewer than 2 commits: flush stdout, print `fatal: bad revision 'NAME~1'`, exit 128. Otherwise append the previous value and return it (P2). |
+| `void btw_rt_hist_reset(long id, long v, long line)`    | The history becomes just v, made on line (P2)                                                                                                   |
+| `void btw_rt_hist_commit(long id, long v, long line)`   | Append v, made on line, dropping the oldest past 16 (P2)                                                                                        |
+| `long btw_rt_hist_revert(long id, const char *name, long line)` | With fewer than 2 commits: flush stdout, print `fatal: bad revision 'NAME~1'`, exit 128. Otherwise append the previous value, made on line, and return it (P2). |
 | `void btw_rt_hist_log(long id, const char *name, long is_bool)` | Print the history newest first, in the Language Spec §9.3 format (P2)                                                       |
+| `void btw_rt_hist_blame(long id, long is_bool)`                 | Print the history newest first with each commit's line, in the Language Spec §9.3 format (P2)                               |
 | `long btw_rt_curl(void)`                                | Read the next number from stdin (Language Spec §10) with `getchar` and return it. At the end of input or on a bad token: flush stdout, print the exact message, exit 52 or 8 (P2). Not `scanf`: `%ld` overflow is undefined and it accepts `+5`. |
 
 Up to 64 tracked variables, with ids assigned by the codegen. More than that is E501.
@@ -385,7 +388,7 @@ Lives in `editors/vscode`, runs with F5 (Extension Development Host), never gets
 | `i use arch btw`, `serve`, `localhost:3000`, `:wq`            | keyword.control.directive.btw                                           |
 | `vibe check`, `skill issue`, `doomscroll`, `touch grass`, `ship it` | keyword.control.btw                                               |
 | `npm install -g`, `npm install`, `microservice`               | storage.type.btw                                                        |
-| `git push --force`, `git revert`, `git log`, `sudo`           | keyword.other.btw                                                       |
+| `git push --force`, `git revert`, `git log`, `git blame`, `sudo` | keyword.other.btw                                                       |
 | `console.log`, `curl`                                         | support.function.btw                                                    |
 | `LGTM`, `404`                                                 | constant.language.btw                                                   |
 | Other numbers                                                 | constant.numeric.btw                                                    |

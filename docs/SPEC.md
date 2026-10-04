@@ -103,6 +103,7 @@ Block comments don't exist: `/*` lexes as `/` then `*` and becomes a syntax erro
 | NOT_FOUND         | `404`, exactly those three digits                                   | false                        | P0   |
 | GIT_REVERT        | `git revert`                                                        | undo                         | P2   |
 | GIT_LOG           | `git log`                                                           | print history                | P2   |
+| GIT_BLAME         | `git blame`                                                         | print history with lines     | P2   |
 | GIT_PUSH_NO_FORCE | `git push` without `--force`                                        | error token, roasted as E400 | P1   |
 | CURL              | `curl`                                                              | read a number from stdin     | P2   |
 
@@ -149,7 +150,7 @@ serve          = SERVE LOCALHOST block
 
 block          = "{" NL* [ stmt { NL+ stmt } ] NL* "}"
 stmt           = var_decl | assign | if | while | break | return
-               | print | revert | log | expr_stmt
+               | print | revert | log | blame | expr_stmt
 var_decl       = ( NPM_INSTALL | NPM_INSTALL_G ) IDENT "=" expr     -g here is E405
 assign         = [ SUDO ] GIT_PUSH_FORCE IDENT "=" expr
 if             = VIBE_CHECK expr block [ NL* SKILL_ISSUE ( if | block ) ]
@@ -159,6 +160,7 @@ return         = SHIP_IT [ expr ]           no expr when the next token is NL or
 print          = CONSOLE_LOG expr
 revert         = [ SUDO ] GIT_REVERT IDENT
 log            = GIT_LOG IDENT
+blame          = GIT_BLAME IDENT
 expr_stmt      = expr                       a call, a pipeline or `curl`; anything else is W204
 
 expr           = pipeline
@@ -207,7 +209,7 @@ highest  9   f(args)  ( )     call, grouping
 | A statement such as `console.log` at top level | E400: Syntax error: `console.log` outside a `microservice` or `serve`. Serverless still needs a server. | P0   |
 | A port other than 3000                         | Accepted in P0. P2 roast in section 13.                                                                 | P2   |
 
-The top-level statement message applies when the unexpected token can only start a statement: `console.log`, `git push --force`, `sudo`, `vibe check`, `doomscroll`, `touch grass`, `ship it`, `git revert` or `git log`. The keyword is shown with single spaces between its words, whatever the source has. `git push` keeps the lexer's own E400. Any other unexpected token at top level gets the generic E400: Syntax error: expected `microservice`, `serve` or `npm install`, found WHAT.
+The top-level statement message applies when the unexpected token can only start a statement: `console.log`, `git push --force`, `sudo`, `vibe check`, `doomscroll`, `touch grass`, `ship it`, `git revert`, `git log` or `git blame`. The keyword is shown with single spaces between its words, whatever the source has. `git push` keeps the lexer's own E400. Any other unexpected token at top level gets the generic E400: Syntax error: expected `microservice`, `serve` or `npm install`, found WHAT.
 
 The parser reports E408 itself, because only it knows the last token: when the file has no `:wq` at all, E408 goes on the last token that isn't a newline or the end of file (on the end of file when there is no other token). Code after `:wq` is E410 only, never E408 as well. The parser never reports E426 or E410. It records whether the arch line was first, where `:wq` is, and what follows it, and the checker reports them. That keeps the parser simple and avoids duplicate errors.
 
@@ -258,6 +260,7 @@ The parser reports E408 itself, because only it knows the last token: when the f
 | `console.log e`                       | Print e and a newline                                                                   | E405 if e is a bare microservice name                                                              | P0                     |
 | `git revert x` or `sudo git revert x` | Restore the previous value (section 9.3)                                                | E403 on a constant without sudo. E405 on microservice parameters and locals.                       | P2                     |
 | `git log x`                           | Print x's history (section 9.3)                                                         | E405 on microservice parameters and locals                                                         | P2                     |
+| `git blame x`                         | Print x's history with the line of each commit (section 9.3)                            | E405 on microservice parameters and locals                                                         | P2                     |
 | `f(a, b)` on its own line             | Call and discard the result                                                             | E404, E422                                                                                         | P0                     |
 | `a                                    | f                                                                                       | console.log`                                                                                       | Pipeline (section 9.4) | E405 if it ends in `console.log` and is used as a value | P2  |
 
@@ -357,6 +360,7 @@ P0 only detects direct self-calls. P1 builds the call graph and finds cycles (Ta
 | `git revert X`                | E403, soft error                                   | fine                                                    |
 | `sudo git revert X`           | fine                                               | W100 (P2)                                               |
 | `git log X`                   | fine, reading doesn't need root                    | fine                                                    |
+| `git blame X`                 | fine, reading doesn't need root                    | fine                                                    |
 
 - `sudo` in front of anything else is E400: "`sudo` only works with `git push --force` and `git revert`."
 - E403 has a help line (CLI pretty mode, and the P2 quick fix): try `sudo git push --force X = ...`.
@@ -368,6 +372,7 @@ P0 only detects direct self-calls. P1 builds the call graph and finds cycles (Ta
 - The declaration is commit 1. Each `git push --force` and each `git revert` adds a commit. A declaration that runs again (inside a loop) starts a fresh history.
 - `git revert x`: if x has fewer than 2 commits, it's a runtime error, `fatal: bad revision 'x~1'` on stderr with exit code 128 (git's own fatal exit code). Otherwise x becomes the value of the second-newest commit, and that value is appended as a new commit.
 - `git log x` prints one line per commit, newest first, as `* VALUE`, with `(HEAD -> x)` appended to the first line. Booleans print as `LGTM` and `404`.
+- `git blame x` prints the same commits in the same order, as `* VALUE (line N)`, with no HEAD. N is the 1-based line where the statement that made the commit starts: the declaration, the `git push --force` or the `git revert`. The line is part of the commit, so a revert records its own line, not the line of the value it restores.
 - Restriction, in both backends, to keep codegen simple: history only works on globals, constants and variables declared in `serve`. On microservice parameters and locals it's E405: "History only works on globals and variables in `serve`. Microservice locals are in detached HEAD state."
 
 ```
@@ -382,6 +387,16 @@ git log x                  prints:
                              * 3
                              * 2
                              * 1
+```
+
+The same program on lines 1 to 5, followed by `git blame x`, prints:
+
+```
+* 3 (line 5)
+* 2 (line 4)
+* 3 (line 3)
+* 2 (line 2)
+* 1 (line 1)
 ```
 
 ## 9.4 Pipes (P2)
@@ -419,7 +434,7 @@ git log x                  prints:
 `btw loadtest FILE NAME` calls microservice NAME in the interpreter for n = 8, 16, 32 and so on up to 1024, counts the work, and puts the measured complexity next to the static one from 9.1. The static checker gives fewer than n trips only to the loop shapes of 9.1; the load test catches where that's pessimistic (a `lo`/`hi` binary search) or optimistic (`doomscroll i < n * n`).
 
 - Hard errors block it. Soft errors (E403, E417) and warnings don't, so an E417 can be measured. Diagnostics go to stderr.
-- Each size is a fresh run: global initializers in source order, then one call to NAME. `serve` doesn't run, and `console.log` and `git log` output is discarded. Stdin is empty, so a `curl` stops the sweep with `curl: (52) Empty reply from server.`
+- Each size is a fresh run: global initializers in source order, then one call to NAME. `serve` doesn't run, and `console.log`, `git log` and `git blame` output is discarded. Stdin is empty, so a `curl` stops the sweep with `curl: (52) Empty reply from server.`
 - The call passes `n` by default. `--args 1,n,5` gives the arguments for any parameter count: numbers as written, `n` replaced by the size.
 - A step is one doomscroll iteration or one microservice call, the call to NAME included. A microservice without loops or calls takes 1 step, and recursion is measured.
 - The whole sweep has a budget of 3,000,000 steps. It stops at the first size that takes it over budget or hits a runtime error (Language Spec 10) and fits the sizes before it. At least 2 sizes must finish.
@@ -455,7 +470,7 @@ The static complexity and the SLA are formatted as in 9.1. An unverifiable or su
 # 10. Runtime behavior
 
 - Order: global initializers in source order, then the `serve` body. The exit code is the value of `ship it` in `serve`, or 0. The OS keeps only the low 8 bits, so tests stay within 0 to 255.
-- `console.log` and `git log` write to stdout. Runtime errors flush stdout first, then write to stderr.
+- `console.log`, `git log` and `git blame` write to stdout. Runtime errors flush stdout first, then write to stderr.
 - `curl` (P2) is the only thing that reads stdin. Stdin is a sequence of tokens separated by ASCII whitespace: space, tab, newline, carriage return, vertical tab and form feed. Each `curl` skips whitespace, reads one token and consumes the one whitespace character after it, if there is one, so it never waits for more input than it needs. A token is an optional `-` followed by one or more digits, leading zeros allowed, in the signed 64-bit range. Anything else, `+5` and `12abc` included, is the weird server reply error.
 
 | Runtime error                              | stderr, exactly                                                                | Exit code |
@@ -526,7 +541,7 @@ Messages contain literal backticks around code, exactly as they appear in the Te
 | W508 | warning    | P0   | recursion                                        | Complexity: O(?). The halting problem is a skill issue.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | the name                                                     |                     |
 | W509 | warning    | P1   | `doomscroll` on LGTM with no way out             | Infinite doomscroll detected. Go touch grass.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `doomscroll`                                                 |                     |
 
-W226 covers locals, globals and constants that are never used. Parameters are exempt. A use is any mention after the declaration: in an expression, or as the target of `git push --force`, `git revert` or `git log`. A declaration that already has an error anywhere in it (its name or its initializer) gets no W226, and a file with an E400 gets none at all, because the statements the parser dropped may have used the variable.
+W226 covers locals, globals and constants that are never used. Parameters are exempt. A use is any mention after the declaration: in an expression, or as the target of `git push --force`, `git revert`, `git log` or `git blame`. A declaration that already has an error anywhere in it (its name or its initializer) gets no W226, and a file with an E400 gets none at all, because the statements the parser dropped may have used the variable.
 
 Diagnostics are sorted by line, then column, then code, and exact duplicates (same code and span) are dropped. The parser reports at most one E400 per statement.
 
@@ -543,6 +558,7 @@ Diagnostics are sorted by line, then column, then code, and exact duplicates (sa
 | `sudo`                   | **Permission override.** Lets you modify constants. With great power comes no code review.                                                                                                                                                                                  |
 | `git revert`             | **Undo.** Restores the previous value as a new commit. History is forever.                                                                                                                                                                                                  |
 | `git log`                | **Print history.** Every value this variable ever had. Most of them were mistakes.                                                                                                                                                                                          |
+| `git blame`              | **Print history with line numbers.** Find out which line made each commit. It was you.                                                                                                                                                                                      |
 | `console.log`            | **print.** Real debugging, in a compiled language.                                                                                                                                                                                                                          |
 | `vibe check`             | **if.** Runs the block when the vibes are LGTM.                                                                                                                                                                                                                             |
 | `skill issue`            | **else.** For when the vibe check fails.                                                                                                                                                                                                                                    |
