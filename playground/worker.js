@@ -30,11 +30,13 @@ ready.then(
 
 // A message runs one program, or several for the Two Sum tests: one per test,
 // all the same code with a different array. Their diagnostics match, so only
-// the first program's are shown.
+// the first program's are shown. With `asm`, its assembly comes next, before
+// the run, so a program stopped for running too long still shows it.
 onmessage = async ({ data }) => {
   const play = await ready;
   try {
     postMessage({ type: "diagnostics", id: data.id, text: play.check(data.sources[0]) });
+    if (data.asm) postMessage({ type: "asm", id: data.id, text: play.asm(data.sources[0]) });
     const runs = data.sources.map((source) => JSON.parse(play.run(source, data.stdin)));
     postMessage({ type: "result", id: data.id, runs });
   } catch (error) {
