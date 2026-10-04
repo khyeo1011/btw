@@ -21,8 +21,8 @@ demo/roast.btw:65:5: error[E400]: `if` is a boomer conditional. Use `vibe check`
 ```
 
 The jokes are the surface. Underneath, the same program runs in an interpreter
-and as a 17 KB x86-64 binary that prints the same bytes about 1,000 times
-faster, and 1,556 tests check every roast character for character.
+and as a 14 KB x86-64 binary that prints the same bytes about 1,000 times
+faster, and 1,778 tests check every roast character for character.
 
 ## Try it
 
@@ -99,15 +99,15 @@ it, but `btw loadtest` doesn't.
 
 |              |                                                                                                  |
 | ------------ | ------------------------------------------------------------------------------------------------ |
-| **1,150×**   | native speedup on `demo/bench.btw`: 14.2 s in the interpreter, 12.4 ms as a binary               |
-| **17 KB**    | the native FizzBuzz, C runtime included. No LLVM: btw writes the assembly, gcc links it          |
+| **1,200×**   | native speedup on `demo/bench.btw`: 14.9 s in the interpreter, 12.4 ms as a binary               |
+| **14 KB**    | the native FizzBuzz, C runtime included. No LLVM: btw writes the assembly, gcc links it          |
 | **83**       | diagnostics from `demo/roast.btw`, a 148-line file                                               |
 | **51**       | diagnostic messages under 31 codes, each one an HTTP status                                      |
 | **22**       | foreign keywords roasted on sight (`if`, `return`, `print`, `null`, ...)                         |
-| **1,557**    | tests, run by CI on every pull request, in about 20 s                                            |
+| **1,778**    | tests, run by CI on every pull request; about 25 s locally                                       |
 | **109**      | golden programs. Each one that compiles is run in the interpreter and as a native binary         |
 | **0**        | bytes of difference allowed between the two backends' stdout, stderr and exit code               |
-| **5,125**    | lines of Python in the compiler, plus 160 lines of C runtime                                     |
+| **5,156**    | lines of Python in the compiler, plus 160 lines of C runtime                                     |
 | **1**        | runtime dependency (pygls, for the language server)                                              |
 | **5**        | TODO comments allowed per file. The 6th fails the build                                          |
 
@@ -374,7 +374,8 @@ flowchart LR
 Each box is a module in `src/btw/`; `driver.py` runs the pipeline and `cli.py`
 is the `btw` command. The parser recovers at the next line or `}`, so
 half-typed code gets one squiggle, not a red file. The codegen is a stack
-machine (GNU as, Intel syntax) linked with the C runtime in `runtime/btw_rt.c`.
+machine (GNU as, Intel syntax) linked with the C runtime in
+`src/btw/runtime/btw_rt.c`.
 
 ## How the Big O checker works
 
