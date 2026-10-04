@@ -58,7 +58,7 @@ def tracked_ids(symbols: Symbols) -> dict[Symbol, int]:
 
 
 def unsupported(program: ast.Program, ids: dict[Symbol, int]) -> list[Diagnostic]:
-    """One E501 per `git revert` and `git log` on a variable past the
+    """One E501 per `git revert`, `git log` and `git blame` on a variable past the
     runtime's 64 histories (Implementation Spec 10.7)."""
     found: list[Diagnostic] = []
 
@@ -83,6 +83,8 @@ def unsupported(program: ast.Program, ids: dict[Symbol, int]) -> list[Diagnostic
                 found.append(e501("git revert", s.span))
             case ast.Log(name=target) if too_many(target):
                 found.append(e501("git log", s.span))
+            case ast.Blame(name=target) if too_many(target):
+                found.append(e501("git blame", s.span))
 
     for item in program.items:
         match item:
@@ -289,7 +291,7 @@ class Codegen:
         self.prologue("main", SERVE)
         for item in globals_:
             self.comment(item.span.start, item.span.end)
-            self.store(item.name.sym, item.value, "btw_rt_hist_reset")
+            self.store(item.name.sym, item.value, "btw_rt_hist_reset", item)
         self.comment(serve.span.start, serve.body.span.start)
         self.block(serve.body)
         self.epilogue("falling off the end of serve exits with 0")
@@ -359,17 +361,22 @@ class Codegen:
     def simple(self, stmt: ast.Stmt) -> None:
         match stmt:
             case ast.VarDecl(name=name, value=value):
-                self.store(name.sym, value, "btw_rt_hist_reset")
+                self.store(name.sym, value, "btw_rt_hist_reset", stmt)
             case ast.Assign(name=target, value=value):
-                self.store(target.sym, value, "btw_rt_hist_commit")
+                self.store(target.sym, value, "btw_rt_hist_commit", stmt)
             case ast.Revert(name=target):
                 self.history_target(target.sym)
+                self.emit("mov", f"rdx, {stmt.span.start.line + 1}", "the line this commit is made on")
                 self.call("btw_rt_hist_revert")
                 self.emit("mov", f"{self.location(target.sym)}, rax", target.name)
             case ast.Log(name=target):
                 self.history_target(target.sym)
                 self.emit("mov", f"rdx, {int(target.sym.ty is Type.BOOLEAN)}", "print as LGTM/404?")
                 self.call("btw_rt_hist_log")
+            case ast.Blame(name=target):
+                self.emit("mov", f"rdi, {self.ids[target.sym]}", f"history of {target.name}")
+                self.emit("mov", f"rsi, {int(target.sym.ty is Type.BOOLEAN)}", "print as LGTM/404?")
+                self.call("btw_rt_hist_blame")
             case ast.Break():
                 self.emit("jmp", self.loop_ends[-1], "touch grass")
             case ast.Return(value=None):
@@ -399,17 +406,18 @@ class Codegen:
             case _:
                 raise AssertionError(f"unexpected statement {stmt!r}")
 
-    def store(self, sym: Symbol, value: ast.Expr, history: str) -> None:
+    def store(self, sym: Symbol, value: ast.Expr, history: str, stmt: ast.Node) -> None:
         """Evaluate into a variable. A tracked one (Language Spec 9.3) also
-        tells the runtime: `btw_rt_hist_reset` for a declaration, so one that
-        runs again starts a fresh history, `btw_rt_hist_commit` for an
-        assignment, wherever it is."""
+        tells the runtime, with the line `stmt` starts on: `btw_rt_hist_reset`
+        for a declaration, so one that runs again starts a fresh history,
+        `btw_rt_hist_commit` for an assignment, wherever it is."""
         self.expr(value)
         self.pop("rax")
         self.emit("mov", f"{self.location(sym)}, rax", sym.name)
         if sym in self.ids:
             self.emit("mov", f"rdi, {self.ids[sym]}", f"history of {sym.name}")
             self.emit("mov", "rsi, rax")
+            self.emit("mov", f"rdx, {stmt.span.start.line + 1}", "the line this commit is made on")
             self.call(history)
 
     def history_target(self, sym: Symbol) -> None:

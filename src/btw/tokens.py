@@ -19,6 +19,7 @@ class TokenKind(Enum):
     GIT_PUSH_NO_FORCE = auto()
     GIT_REVERT = auto()
     GIT_LOG = auto()
+    GIT_BLAME = auto()
     CONSOLE_LOG = auto()
     VIBE_CHECK = auto()
     SKILL_ISSUE = auto()

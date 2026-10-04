@@ -417,6 +417,16 @@ def test_history_targets():
     assert tracked == ["G", "b", "s"]
 
 
+def test_blame_targets_like_log():
+    src = wrap(
+        "npm install s = 1\ngit blame s\nconsole.log f(1)",
+        top="npm install G = 1\nmicroservice f(n) {\n  git blame G\n  git blame n\n  ship it n\n}\n",
+    )
+    _, symbols, diags = run_check(src)
+    assert [(d.code, d.span) for d in diags] == [("E405", Span(Pos(4, 2), Pos(4, 13)))]
+    assert sorted(sym.name for sym in symbols.all if sym.tracked) == ["G", "s"]
+
+
 # P2: unused variables
 
 
@@ -435,8 +445,15 @@ def test_w226_on_the_name_of_locals_globals_and_constants():
 
 @pytest.mark.parametrize(
     "use",
-    ["console.log x", "git push --force x = 2", "git revert x", "git log x", "console.log x(1)"],
-    ids=["read", "push", "revert", "log", "called"],
+    [
+        "console.log x",
+        "git push --force x = 2",
+        "git revert x",
+        "git log x",
+        "git blame x",
+        "console.log x(1)",
+    ],
+    ids=["read", "push", "revert", "log", "blame", "called"],
 )
 def test_any_mention_is_a_use(use):
     assert "W226" not in codes(wrap(f"npm install x = 1\n{use}"))

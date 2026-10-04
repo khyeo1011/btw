@@ -59,7 +59,7 @@ editors/nvim/README.md                         how to load both
 | `doomscroll`, `touch grass`                      | btwRepeat      | Repeat      |
 | `ship it`                                        | btwReturn      | Statement   |
 | `npm install`, `npm install -g`, `microservice`  | btwStorage     | Type        |
-| `git push --force`, `git revert`, `git log`, `sudo` | btwOther    | Statement   |
+| `git push --force`, `git revert`, `git log`, `git blame`, `sudo` | btwOther | Statement |
 | `console.log`, microservice name                 | btwConsoleLog, btwFuncName | Function |
 | `LGTM`, `404`                                    | btwBoolean     | Boolean     |
 | other numbers                                    | btwNumber      | Number      |

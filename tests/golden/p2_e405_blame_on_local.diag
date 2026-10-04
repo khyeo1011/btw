@@ -1,0 +1,2 @@
+4:5: error[E405]: History only works on globals and variables in `serve`. Microservice locals are in detached HEAD state.
+5:5: error[E405]: History only works on globals and variables in `serve`. Microservice locals are in detached HEAD state.

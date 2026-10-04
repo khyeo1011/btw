@@ -54,7 +54,7 @@
           "name": "storage.type.btw"
         },
         {
-          "match": "\\b(?:sudo|git[ \\t]+push[ \\t]+--force|git[ \\t]+revert|git[ \\t]+log)\\b",
+          "match": "\\b(?:sudo|git[ \\t]+push[ \\t]+--force|git[ \\t]+revert|git[ \\t]+log|git[ \\t]+blame)\\b",
           "name": "keyword.other.btw"
         },
         {

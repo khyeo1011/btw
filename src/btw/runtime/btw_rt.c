@@ -83,10 +83,12 @@ long btw_rt_curl(void) {
 }
 
 /* Git history (Language Spec 9.3, P2). Each tracked variable gets an id from
- * the codegen. Its commits are a ring of the 16 newest values. */
+ * the codegen. Its commits are a ring of the 16 newest values, with a parallel
+ * ring of the source line that made each one, for git blame. */
 
 static struct {
     long values[HISTORY_LIMIT];
+    long lines[HISTORY_LIMIT];
     long start; /* index of the oldest commit */
     long count;
 } history[TRACKED_LIMIT];
@@ -95,24 +97,32 @@ static long nth(long id, long k) { /* k = 0 is the oldest kept commit */
     return history[id].values[(history[id].start + k) % HISTORY_LIMIT];
 }
 
-void btw_rt_hist_reset(long id, long v) {
+static long nth_line(long id, long k) {
+    return history[id].lines[(history[id].start + k) % HISTORY_LIMIT];
+}
+
+void btw_rt_hist_reset(long id, long v, long line) {
     history[id].values[0] = v;
+    history[id].lines[0] = line;
     history[id].start = 0;
     history[id].count = 1;
 }
 
-void btw_rt_hist_commit(long id, long v) {
+void btw_rt_hist_commit(long id, long v, long line) {
     long count = history[id].count;
+    long slot;
     if (count < HISTORY_LIMIT) {
-        history[id].values[(history[id].start + count) % HISTORY_LIMIT] = v;
+        slot = (history[id].start + count) % HISTORY_LIMIT;
         history[id].count = count + 1;
     } else {
-        history[id].values[history[id].start] = v; /* overwrite the oldest */
+        slot = history[id].start; /* overwrite the oldest */
         history[id].start = (history[id].start + 1) % HISTORY_LIMIT;
     }
+    history[id].values[slot] = v;
+    history[id].lines[slot] = line;
 }
 
-long btw_rt_hist_revert(long id, const char *name) {
+long btw_rt_hist_revert(long id, const char *name, long line) {
     long count = history[id].count;
     if (count < 2) {
         fflush(stdout);
@@ -120,21 +130,31 @@ long btw_rt_hist_revert(long id, const char *name) {
         exit(128);
     }
     long previous = nth(id, count - 2);
-    btw_rt_hist_commit(id, previous);
+    btw_rt_hist_commit(id, previous, line);
     return previous;
+}
+
+static void print_commit(long v, long is_bool) { /* `* VALUE`, no newline */
+    if (is_bool) {
+        printf("* %s", v ? "LGTM" : "404");
+    } else {
+        printf("* %ld", v);
+    }
 }
 
 void btw_rt_hist_log(long id, const char *name, long is_bool) {
     for (long k = history[id].count - 1; k >= 0; k--) {
-        long v = nth(id, k);
-        if (is_bool) {
-            printf("* %s", v ? "LGTM" : "404");
-        } else {
-            printf("* %ld", v);
-        }
+        print_commit(nth(id, k), is_bool);
         if (k == history[id].count - 1) {
             printf(" (HEAD -> %s)", name);
         }
         putchar('\n');
+    }
+}
+
+void btw_rt_hist_blame(long id, long is_bool) {
+    for (long k = history[id].count - 1; k >= 0; k--) {
+        print_commit(nth(id, k), is_bool);
+        printf(" (line %ld)\n", nth_line(id, k));
     }
 }

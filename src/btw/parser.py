@@ -32,6 +32,7 @@ SPELLING: dict[K, str] = {
     K.GIT_PUSH_NO_FORCE: "git push",
     K.GIT_REVERT: "git revert",
     K.GIT_LOG: "git log",
+    K.GIT_BLAME: "git blame",
     K.CONSOLE_LOG: "console.log",
     K.VIBE_CHECK: "vibe check",
     K.SKILL_ISSUE: "skill issue",
@@ -56,6 +57,7 @@ STATEMENT_ONLY = {
     K.SHIP_IT,
     K.GIT_REVERT,
     K.GIT_LOG,
+    K.GIT_BLAME,
 }
 
 ITEM_START = {K.NPM_INSTALL, K.NPM_INSTALL_G, K.MICROSERVICE, K.SERVE}
@@ -578,14 +580,11 @@ class _Parser:
                 return self.assign(start, sudo=False)
             case K.GIT_REVERT:
                 return self.revert(start, sudo=False)
-            case K.GIT_LOG:
+            case K.GIT_LOG | K.GIT_BLAME:
                 self.advance()
                 target = self.target()
-                return (
-                    None
-                    if target is None
-                    else ast.Log(target, span=self.span_from(start))
-                )
+                node = ast.Log if tok.kind is K.GIT_LOG else ast.Blame
+                return None if target is None else node(target, span=self.span_from(start))
             case K.VIBE_CHECK:
                 return self.if_stmt()
             case K.DOOMSCROLL:

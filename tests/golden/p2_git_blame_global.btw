@@ -1,0 +1,14 @@
+i use arch btw
+npm install total = 10
+npm install -g READY = 404
+microservice bump(n) O(1) {
+    git push --force total = total + n
+    ship it total
+}
+serve localhost:3000 {
+    bump(5)
+    sudo git push --force READY = LGTM
+    git blame total
+    git blame READY
+}
+:wq

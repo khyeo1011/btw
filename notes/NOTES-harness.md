@@ -154,11 +154,17 @@ change.
 - `p2_curl_sum.btw`: curl reads a count, then that many numbers, separated by newlines, a space and a tab; leading zeros are fine
 - `p2_curl_weird_overflow.btw`: curl reads 9223372036854775808: curl: (8), exit 8
 - `p2_curl_weird_reply.btw`: curl reads `12abc`: curl: (8) after the first number is printed, exit 8
+- `p2_e400_blame_top_level.btw`: E400 `git  blame` at top level, shown as `git blame`
 - `p2_e400_curl_reserved.btw`: E400 reserved word `curl` used as a variable name
 - `p2_e403_revert_constant.btw`: E403 git revert on a constant without sudo
+- `p2_e405_blame_on_local.btw`: E405 git blame on a microservice local and on a parameter
 - `p2_e405_curl_global_init.btw`: E405 curl in a global initializer, on the `curl`
 - `p2_e405_history_on_local.btw`: E405 git revert on a microservice local and git log on a parameter
 - `p2_e405_pipe_console_log_value.btw`: E405 pipe into console.log used as a value
+- `p2_git_blame.btw`: the git blame example from 9.3: a revert records its own line
+- `p2_git_blame_fresh_history.btw`: a declaration in a loop starts a fresh blame; a declaration over two lines has its first line; booleans
+- `p2_git_blame_global.btw`: git blame on a global committed in a microservice and on a sudo constant
+- `p2_git_blame_limit.btw`: the oldest commit's line is dropped with its value past 16 commits
 - `p2_git_history.btw`: the git log example from 9.3
 - `p2_git_log_fresh_history.btw`: a declaration in a loop starts a fresh history; booleans in git log
 - `p2_git_log_limit.btw`: history keeps only the 16 newest commits

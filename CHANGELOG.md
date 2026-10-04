@@ -14,6 +14,10 @@ All notable changes to btw are recorded here. The format follows
   code 8. In a global initializer it's E405: postinstall scripts can't make
   network calls. `curl` is now a reserved word.
 - The playground has a stdin box and a `curl` example.
+- `git blame x` prints x's history newest first with the line of each
+  commit, as `* 3 (line 7)`. A revert records its own line. Same rules as
+  `git log`: E405 on microservice locals, and no `sudo` needed for constants.
+- The playground has a `git blame` example.
 - Golden tests can have a `.in` file for stdin.
 
 ## [0.2.0] - 2026-10-03

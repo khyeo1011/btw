@@ -230,9 +230,9 @@ LEGEND = types.SemanticTokensLegend(token_types=TOKEN_TYPES, token_modifiers=TOK
 
 KEYWORD_KINDS = {
     K.ARCH, K.SERVE, K.LOCALHOST, K.WQ, K.NPM_INSTALL_G, K.NPM_INSTALL, K.SUDO,
-    K.GIT_PUSH_FORCE, K.GIT_PUSH_NO_FORCE, K.GIT_REVERT, K.GIT_LOG, K.VIBE_CHECK,
-    K.SKILL_ISSUE, K.DOOMSCROLL, K.TOUCH_GRASS, K.MICROSERVICE, K.SHIP_IT, K.LGTM,
-    K.NOT_FOUND,
+    K.GIT_PUSH_FORCE, K.GIT_PUSH_NO_FORCE, K.GIT_REVERT, K.GIT_LOG, K.GIT_BLAME,
+    K.VIBE_CHECK, K.SKILL_ISSUE, K.DOOMSCROLL, K.TOUCH_GRASS, K.MICROSERVICE, K.SHIP_IT,
+    K.LGTM, K.NOT_FOUND,
 }  # every keyword but console.log and curl, functions like in the TextMate grammar
 OPERATOR_KINDS = {
     K.PLUS, K.MINUS, K.STAR, K.SLASH, K.PERCENT, K.EQ_EQ, K.BANG_EQ, K.LT, K.LE,
@@ -409,6 +409,7 @@ SNIPPETS = {
     "git push --force": "git push --force ${1:name} = $0",
     "git revert": "git revert $0",
     "git log": "git log $0",
+    "git blame": "git blame $0",
     "sudo": "sudo ",
     "console.log": "console.log $0",
     "vibe check": "vibe check $1 {\n\t$0\n}",

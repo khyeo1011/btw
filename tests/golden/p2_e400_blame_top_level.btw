@@ -1,0 +1,7 @@
+i use arch btw
+npm install x = 1
+git  blame x
+serve localhost:3000 {
+    console.log x
+}
+:wq

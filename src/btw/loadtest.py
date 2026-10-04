@@ -16,7 +16,7 @@ from btw import ast
 from btw.bigo import SUPERPOLYNOMIAL, UNKNOWN, Degree, annotation, format_complexity, infer
 from btw.checker import Symbols
 from btw.driver import BtwError
-from btw.interp import RECURSION_LIMIT, BreakSignal, Interpreter, RuntimeFault, wrap
+from btw.interp import RECURSION_LIMIT, BreakSignal, Interpreter, RuntimeFault, line, wrap
 
 SIZES = [8, 16, 32, 64, 128, 256, 512, 1024]
 BUDGET = 3_000_000  # steps for the whole sweep, so any program finishes in seconds
@@ -96,7 +96,7 @@ def measure(
             try:
                 for item in program.items:
                     if isinstance(item, ast.GlobalDecl):
-                        interp.declare(item.name.sym, interp.eval(item.value))
+                        interp.declare(item.name.sym, interp.eval(item.value), line(item))
                 interp.call(service, [n if arg is None else arg for arg in template])
             except OverBudget:
                 lines.append(f"n = {n}: over budget. Stopped.")
