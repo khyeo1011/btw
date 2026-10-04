@@ -48,7 +48,7 @@ jobs:
   package:
     name: package
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -67,6 +67,14 @@ jobs:
 
       - name: Check distributions
         run: scripts/check-dist.sh dist
+
+      # The release attaches these two ELF executables, so build them on every
+      # pull request too.
+      - name: Build executables
+        run: scripts/build-exe.sh exe
+
+      - name: Check executables
+        run: scripts/check-exe.sh exe
 
   whitespace:
     name: whitespace

@@ -3,15 +3,29 @@
 Releases are cut from `main` by pushing a `vX.Y.Z` tag. The
 [Release workflow](.github/workflows/release.yml) then checks the tag against
 `pyproject.toml` and `CHANGELOG.md`, runs the tests, builds the wheel and
-sdist, smoke-tests the installed wheel with `scripts/check-dist.sh` and
-creates a GitHub release with both files attached.
+sdist, smoke-tests the installed wheel with `scripts/check-dist.sh`, builds the
+two executables with `scripts/build-exe.sh`, smoke-tests them with
+`scripts/check-exe.sh` and creates a GitHub release with the executables
+attached.
 
 ## What a release contains
 
-- `btw-X.Y.Z-py3-none-any.whl`: the `btw` and `btw-lsp` commands. It carries
-  `runtime/btw_rt.c` as `btw/btw_rt.c` (through the `src/btw/btw_rt.c`
-  symlink), so `btw build` works without a checkout. Native builds still need
-  gcc and GNU as on Linux x86-64.
+Two standalone ELF executables for Linux x86-64 (glibc), built with
+PyInstaller. Each carries its own Python, pygls and the C runtime, so neither
+needs Python or a checkout:
+
+- `btw`: the compiler (`check`, `run`, `build`, `asm`, ...). `btw build` still
+  needs gcc and GNU as.
+- `btw-lsp`: the language server, over stdio.
+
+PyInstaller is a build tool only: `scripts/build-exe.sh` runs a pinned version
+through `uv run --with`, so it isn't a dependency of the package.
+
+The wheel and sdist are still built and checked, but only uploaded when
+publishing to PyPI (below):
+
+- `btw-X.Y.Z-py3-none-any.whl`: the `btw` and `btw-lsp` commands, with
+  `btw/runtime/btw_rt.c`.
 - `btw-X.Y.Z.tar.gz`: the sdist, with the runtime, the specs and the full test
   suite, so `uv run pytest` works from the unpacked archive.
 
@@ -27,10 +41,11 @@ creates a GitHub release with both files attached.
    uv run pytest
    rm -rf dist && uv build --no-sources
    scripts/check-dist.sh dist
+   scripts/build-exe.sh exe && scripts/check-exe.sh exe
    ```
 
 4. Open a pull request into `main` and merge it once CI is green (the
-   `package` job runs the same distribution check).
+   `package` job runs the same distribution and executable checks).
 5. Tag the merge commit and push the tag:
 
    ```
