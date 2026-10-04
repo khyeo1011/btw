@@ -6,6 +6,16 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `curl` reads one number from stdin. At the end of input it's
+  `curl: (52) Empty reply from server.` with exit code 52, and on anything
+  that isn't a 64-bit integer `curl: (8) Weird server reply.` with exit
+  code 8. In a global initializer it's E405: postinstall scripts can't make
+  network calls. `curl` is now a reserved word.
+- The playground has a stdin box and a `curl` example.
+- Golden tests can have a `.in` file for stdin.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added
