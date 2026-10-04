@@ -207,9 +207,9 @@ def microservice_hover(program: ast.Program, ms: ast.Microservice) -> str:
     if ms.big_o is None:
         found = bigo.format_complexity(d)
         return f"{header} · no SLA · {NO_SLA.format(found)}"
-    k, var = ms.big_o.degree, ms.big_o.var
+    k, var = bigo.annotation(ms.big_o)
     found = bigo.format_complexity(d, var)
-    if k is None:
+    if k is bigo.UNKNOWN:
         return f"{header} · SLA O({ms.big_o.text}) · inferred {found}"
     claimed = bigo.format_complexity(k, var)
     if d is bigo.UNKNOWN:
@@ -221,11 +221,11 @@ def annotation_verdict(program: ast.Program, ms: ast.Microservice) -> str:
     """Correct, wrong (an under- or over-claim), O(?) for recursion, or
     unverifiable. Neither of the last two is checked."""
     assert ms.big_o is not None
-    k, var = ms.big_o.degree, ms.big_o.var
+    k, var = bigo.annotation(ms.big_o)
     d = inferred(program, ms)
     if d is bigo.UNKNOWN:
         return "O(?)."
-    if k is None:
+    if k is bigo.UNKNOWN:
         return f"can't verify O({ms.big_o.text}). Inferred: {bigo.format_complexity(d, var)}."
     if k == d:
         return "Correct! Are you an arch user as well?"

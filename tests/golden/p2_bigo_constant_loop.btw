@@ -1,0 +1,15 @@
+i use arch btw
+microservice dice(n) O(1) {
+    npm install total = 0
+    npm install roll = 1
+    doomscroll roll <= 6 {
+        git push --force total = total + roll
+        git push --force roll = roll + 1
+    }
+    ship it total + n
+}
+serve localhost:3000 {
+    console.log dice(0)
+    console.log dice(100)
+}
+:wq

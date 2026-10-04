@@ -23,7 +23,7 @@ microservice square(n) O(n) {
 }
 microservice slow(n) O(n^2) { ship it n }
 microservice loop(n) { ship it loop(n) }
-microservice fuzzy(n) O(log n) { ship it n }
+microservice fuzzy(n) O(2^n) { ship it n }
 serve localhost:3000 {
     npm install ok = LGTM
     console.log total(LIMIT) + square(2) + slow(1) + loop(1) + fuzzy(1)
@@ -117,8 +117,15 @@ def test_microservice_verdicts():
         "`microservice loop(n)` · no SLA · I had to read your code to find out it's O(?). "
         "Write an SLA."
     )
-    assert text_at(20, "fuzzy") == "`microservice fuzzy(n)` · SLA O(log n) · inferred O(1)"
+    assert text_at(20, "fuzzy") == "`microservice fuzzy(n)` · SLA O(2^n) · inferred O(1)"
 
+
+
+def test_log_sla_is_checked():
+    source = "i use arch btw\nmicroservice half(n) O(log n) {\n doomscroll n > 0 { git push --force n = n / 2 }\n}\n"
+    assert text_at(2, "half", source=source) == "`microservice half(n)` · SLA O(log n) · inferred O(log n) ✓"
+    verdict = text_at(2, "O(", source=source)
+    assert verdict == "**SLA.** Checked by counting nested doomscrolls. Verdict: Correct! Are you an arch user as well?"
 
 def test_microservice_without_sla_gets_taunted():
     source = """\
@@ -144,7 +151,7 @@ def test_big_o_annotation():
     assert text_at(6, "O(n)") == prefix + "Correct! Are you an arch user as well?"
     assert text_at(11, "O(n)", 2) == prefix + "Go take a DSA course again."  # under-claim
     assert text_at(18, "O(n^2)") == prefix + "Go take a DSA course again."  # over-claim
-    assert text_at(20, "O(log") == prefix + "can't verify O(log n). Inferred: O(1)."
+    assert text_at(20, "O(2") == prefix + "can't verify O(2^n). Inferred: O(1)."
 
 
 def test_nothing_to_say():

@@ -1,0 +1,13 @@
+i use arch btw
+microservice countdown(n) O(log n) {
+    npm install steps = 0
+    doomscroll n > 0 {
+        git push --force n = n - 1
+        git push --force steps = steps + 1
+    }
+    ship it steps
+}
+serve localhost:3000 {
+    console.log countdown(8)
+}
+:wq
