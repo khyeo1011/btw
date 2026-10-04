@@ -45,6 +45,9 @@ KEYWORDS: dict[K, str] = {
     K.GIT_LOG: (
         "**Print history.** Every value this variable ever had. Most of them were mistakes."
     ),
+    K.GIT_BLAME: (
+        "**Print history with line numbers.** Find out which line made each commit. It was you."
+    ),
     K.CONSOLE_LOG: "**print.** Real debugging, in a compiled language.",
     K.VIBE_CHECK: "**if.** Runs the block when the vibes are LGTM.",
     K.SKILL_ISSUE: "**else.** For when the vibe check fails.",

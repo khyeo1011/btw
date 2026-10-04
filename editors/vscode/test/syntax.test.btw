@@ -64,6 +64,10 @@
 //       ^^^^^^^^^^ keyword.other.btw
     git log x
 //  ^^^^^^^ keyword.other.btw
+    git	blame x
+//  ^^^^^^^^^ keyword.other.btw
+    npm install blamed = git
+//                  ^^^^^^ - keyword.other.btw
     console.log "vibe check \"ship it\"\n"
 //  ^^^^^^^^^^^ support.function.btw
 //               ^^^^^^^^^^ string.quoted.double.btw

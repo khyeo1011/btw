@@ -27,6 +27,7 @@ syn match btwStorage "\<npm[ \t]\+install[ \t]\+-g\>"
 syn match btwOther "\<git[ \t]\+push[ \t]\+--force\>"
 syn match btwOther "\<git[ \t]\+revert\>"
 syn match btwOther "\<git[ \t]\+log\>"
+syn match btwOther "\<git[ \t]\+blame\>"
 syn keyword btwOther sudo
 
 syn match btwConsoleLog "\<console\.log\>"

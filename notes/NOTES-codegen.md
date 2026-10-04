@@ -53,9 +53,11 @@ The only E501 left is more than 64 tracked variables (decision 9).
 - **Git history.** Tracked symbols get ids 0 to 63 in `symbols.all` order.
   Declarations (global initializers included) call `btw_rt_hist_reset`, and
   assignments call `btw_rt_hist_commit`, including assignments to a tracked
-  global from inside a microservice. `git revert` calls
-  `btw_rt_hist_revert` and stores `rax`. `git log` passes `rdx = 1` for
-  booleans. Each tracked name is a `.LstrN` string.
+  global from inside a microservice. All three pass the statement's 1-based
+  start line in `rdx`, for `git blame`. `git revert` calls
+  `btw_rt_hist_revert` and stores `rax`. `git log` passes `rdx = 1` and
+  `git blame` passes `rsi = 1` for booleans. Each tracked name is a
+  `.LstrN` string; `git blame` needs none, since it prints no HEAD.
 - Slots: each function's symbols in `symbols.frames` order, written to
   `Symbol.slot`. FRAME is 8 per slot rounded up to 16, and `sub rsp` is
   omitted when there are no slots.

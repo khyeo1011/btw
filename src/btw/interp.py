@@ -79,6 +79,11 @@ def format_value(value: Value) -> str:
     return str(value)
 
 
+def line(node: ast.Node) -> int:
+    """The 1-based line a statement starts on, recorded with each commit (Language Spec 9.3)."""
+    return node.span.start.line + 1
+
+
 # Control flow
 
 
@@ -117,7 +122,7 @@ class Interpreter:
         self.globals: dict[Symbol, Value] = {}
         self.frame: dict[Symbol, Value] = {}
         self.depth = 0
-        self.history: dict[Symbol, list[Value]] = {}
+        self.history: dict[Symbol, list[tuple[Value, int]]] = {}  # (value, line) commits
         self.services: dict[Symbol, ast.Microservice] = {}
         for item in program.items:
             if isinstance(item, ast.Microservice) and isinstance(item.name.sym, Symbol):
@@ -129,7 +134,7 @@ class Interpreter:
         """Global initializers in source order, then the `serve` body (Language Spec 10)."""
         for item in self.program.items:
             if isinstance(item, ast.GlobalDecl):
-                self.declare(item.name.sym, self.eval(item.value))
+                self.declare(item.name.sym, self.eval(item.value), line(item))
         serve = next(item for item in self.program.items if isinstance(item, ast.Serve))
         try:
             self.exec_block(serve.body)
@@ -144,18 +149,18 @@ class Interpreter:
             return self.globals
         return self.frame
 
-    def declare(self, sym: Symbol, value: Value) -> None:
+    def declare(self, sym: Symbol, value: Value, line: int) -> None:
         """Bind a declaration. Running it again (in a loop) starts a fresh history."""
         self.scope(sym)[sym] = value
         if sym.tracked:
-            self.history[sym] = [value]
+            self.history[sym] = [(value, line)]
 
-    def assign(self, sym: Symbol, value: Value) -> None:
-        """Change a variable and record the change as a commit."""
+    def assign(self, sym: Symbol, value: Value, line: int) -> None:
+        """Change a variable and record the change as a commit made on `line`."""
         self.scope(sym)[sym] = value
         if sym.tracked:
             history = self.history[sym]
-            history.append(value)
+            history.append((value, line))
             del history[:-HISTORY_LIMIT]
 
     def load(self, sym: Symbol) -> Value:
@@ -170,9 +175,9 @@ class Interpreter:
     def exec(self, stmt: ast.Stmt) -> None:
         match stmt:
             case ast.VarDecl(name=name, value=value):
-                self.declare(name.sym, self.eval(value))
+                self.declare(name.sym, self.eval(value), line(stmt))
             case ast.Assign(name=target, value=value):
-                self.assign(target.sym, self.eval(value))
+                self.assign(target.sym, self.eval(value), line(stmt))
             case ast.If(cond=cond, then=then, else_=else_):
                 if self.eval(cond):
                     self.exec_block(then)
@@ -195,26 +200,33 @@ class Interpreter:
             case ast.Print(value=value):
                 self.stdout.write(format_value(self.eval(value)) + "\n")
             case ast.Revert(name=target):
-                self.revert(target)
+                self.revert(target, line(stmt))
             case ast.Log(name=target):
                 self.log(target)
+            case ast.Blame(name=target):
+                self.blame(target)
             case ast.ExprStmt(expr=expr):
                 self.eval(expr)
             case _:
                 raise AssertionError(f"unexpected statement {stmt!r}")
 
-    def revert(self, target: ast.Var) -> None:
-        """`git revert x` (Language Spec 9.3)."""
+    def revert(self, target: ast.Var, line: int) -> None:
+        """`git revert x` on `line`, which the new commit records (Language Spec 9.3)."""
         history = self.history[target.sym]
         if len(history) < 2:
             raise RuntimeFault(f"fatal: bad revision '{target.name}~1'", 128)
-        self.assign(target.sym, history[-2])
+        self.assign(target.sym, history[-2][0], line)
 
     def log(self, target: ast.Var) -> None:
         """`git log x`: newest first, HEAD on the first line (Language Spec 9.3)."""
-        for i, value in enumerate(reversed(self.history[target.sym])):
+        for i, (value, _) in enumerate(reversed(self.history[target.sym])):
             head = f" (HEAD -> {target.name})" if i == 0 else ""
             self.stdout.write(f"* {format_value(value)}{head}\n")
+
+    def blame(self, target: ast.Var) -> None:
+        """`git blame x`: newest first, each commit with its line (Language Spec 9.3)."""
+        for value, line in reversed(self.history[target.sym]):
+            self.stdout.write(f"* {format_value(value)} (line {line})\n")
 
     # Expressions
 

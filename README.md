@@ -113,6 +113,7 @@ runs.
 | `microservice` / `ship it`   | function / return    | Shipping straight to prod               |
 | `LGTM` / `404`               | true / false         | Code review and missing things          |
 | `git revert x` / `git log x` | undo / print history | Undo for variables, the git way        |
+| `git blame x`                | history with lines   | Find out which line did it              |
 | `a \| f \| console.log`      | pipe                 | Desugars to `console.log f(a)`          |
 | `npm install n = curl`       | read a number        | From stdin. At EOF: `curl: (52)`        |
 | `// TODO ...`                | the only comment     | More than 5 per file fails the build    |
@@ -204,6 +205,8 @@ prints the history, newest first. After `npm install x = 1`, pushes of 2 and 3,
 and two reverts, `git log x` prints `* 3 (HEAD -> x)`, `* 2`, `* 3`, `* 2`,
 `* 1`, one per line (`tests/golden/p2_git_history.btw`). Reverting a variable
 with one commit fails like git does: `fatal: bad revision 'x~1'`, exit code 128.
+`git blame x` prints the same commits with the line that made each one, as
+`* 3 (line 7)`, `* 2 (line 6)` and so on (`tests/golden/p2_git_blame.btw`).
 History works in the interpreter and in native builds.
 
 ### Pipes

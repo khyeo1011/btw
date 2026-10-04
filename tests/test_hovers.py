@@ -169,6 +169,13 @@ def test_curl():
     )
 
 
+def test_git_blame():
+    source = "i use arch btw\nserve localhost:3000 {\n    npm install x = 1\n    git blame x\n}\n:wq\n"
+    assert text_at(4, "git", source=source) == (
+        "**Print history with line numbers.** Find out which line made each commit. It was you."
+    )
+
+
 def test_nothing_to_say():
     assert text_at(2, "10") is None
     assert text_at(5, "two") == text_at(4, "one")

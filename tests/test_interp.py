@@ -282,6 +282,19 @@ def test_git_history():
     assert execute(program(body))[0] == "* 1 (HEAD -> x)\n* 2\n* 1\n"
 
 
+def test_git_blame_records_each_commits_line():
+    top = "npm install -g ON = LGTM\n"
+    body = (
+        "    npm install x = 1\n"
+        "    git push --force x = 2\n"
+        "    git revert x\n"
+        "    git blame x\n"
+        "    git blame ON"
+    )
+    out = execute(program(body, top))[0]
+    assert out == "* 1 (line 6)\n* 2 (line 5)\n* 1 (line 4)\n* LGTM (line 2)\n"
+
+
 def test_git_history_keeps_16_commits():
     body = (
         "    npm install x = 0\n"

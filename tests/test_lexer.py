@@ -40,6 +40,7 @@ def codes(src):
         ("git    push   --force", K.GIT_PUSH_FORCE),
         ("git revert", K.GIT_REVERT),
         ("git log", K.GIT_LOG),
+        ("git  blame", K.GIT_BLAME),
         ("console.log", K.CONSOLE_LOG),
         ("vibe  check", K.VIBE_CHECK),
         ("skill\tissue", K.SKILL_ISSUE),

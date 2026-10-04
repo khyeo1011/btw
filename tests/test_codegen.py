@@ -54,15 +54,18 @@ def too_many_histories() -> str:
         *[f"    git log v{k}" for k in range(65)],
         "    git revert v64",
         "    git log v0",
+        "    git blame v64",
     )
 
 
 def test_history_past_64_variables_is_e501():
     revert = "Not implemented: `git revert` in native builds. Try `btw run`."
     log = "Not implemented: `git log` in native builds. Try `btw run`."
+    blame = "Not implemented: `git blame` in native builds. Try `btw run`."
     assert e501s(too_many_histories()) == [
         (log, Span(Pos(131, 4), Pos(131, 15))),
         (revert, Span(Pos(132, 4), Pos(132, 18))),
+        (blame, Span(Pos(134, 4), Pos(134, 17))),
     ]
 
 
@@ -256,15 +259,21 @@ def test_history_calls():
         "    git revert x",
         "    git log x",
         top=("npm install -g ON = LGTM", "microservice f() O(1) {", "    ship it 1", "}"),
-    ).replace("    git log x\n", "    git log x\n    sudo git push --force ON = 404\n    git log ON\n")
+    ).replace(
+        "    git log x\n",
+        "    git log x\n    sudo git push --force ON = 404\n    git log ON\n    git blame ON\n",
+    )
     _, text = asm(source)
     lines = [" ".join(line.split()) for line in text.splitlines()]
     assert lines.count("call btw_rt_hist_reset") == 2  # x and the constant ON
     assert lines.count("call btw_rt_hist_commit") == 2  # x and ON, not untracked
-    start = lines.index("call btw_rt_hist_revert") - 2
-    assert lines[start : start + 4] == [
+    commit = lines.index("call btw_rt_hist_commit")
+    assert lines[commit - 1] == "mov rdx, 9"  # the line of `git push --force x = untracked`
+    start = lines.index("call btw_rt_hist_revert") - 3
+    assert lines[start : start + 5] == [
         "mov rdi, 1",
         "lea rsi, [rip + .Lstr0]",
+        "mov rdx, 11",
         "call btw_rt_hist_revert",
         "mov qword ptr [rbp - 8], rax",
     ]
@@ -273,6 +282,8 @@ def test_history_calls():
         ["mov rdi, 1", "lea rsi, [rip + .Lstr0]", "mov rdx, 0"],
         ["mov rdi, 0", "lea rsi, [rip + .Lstr1]", "mov rdx, 1"],
     ]
+    blame = lines.index("call btw_rt_hist_blame")
+    assert lines[blame - 2 : blame] == ["mov rdi, 0", "mov rsi, 1"]  # no name: no HEAD
     assert '.Lstr0: .string "x"\n' in text and '.Lstr1: .string "ON"\n' in text
 
 
@@ -555,6 +566,7 @@ ALIGNMENT_PROBE = r"""
 #define btw_rt_hist_commit real_hist_commit
 #define btw_rt_hist_revert real_hist_revert
 #define btw_rt_hist_log real_hist_log
+#define btw_rt_hist_blame real_hist_blame
 #define btw_rt_curl real_curl
 #include "RUNTIME"
 #undef btw_rt_print_int
@@ -566,6 +578,7 @@ ALIGNMENT_PROBE = r"""
 #undef btw_rt_hist_commit
 #undef btw_rt_hist_revert
 #undef btw_rt_hist_log
+#undef btw_rt_hist_blame
 #undef btw_rt_curl
 
 /* At -O0 with a frame pointer, rbp is 16-byte aligned exactly when the
@@ -578,12 +591,15 @@ void btw_rt_print_bool(long v) { CHECK; real_print_bool(v); }
 void btw_rt_print_str(const char *s) { CHECK; real_print_str(s); }
 void btw_rt_div_zero(void) { CHECK; real_div_zero(); }
 void btw_rt_stack_overflow(void) { CHECK; real_stack_overflow(); }
-void btw_rt_hist_reset(long id, long v) { CHECK; real_hist_reset(id, v); }
-void btw_rt_hist_commit(long id, long v) { CHECK; real_hist_commit(id, v); }
-long btw_rt_hist_revert(long id, const char *name) { CHECK; return real_hist_revert(id, name); }
+void btw_rt_hist_reset(long id, long v, long line) { CHECK; real_hist_reset(id, v, line); }
+void btw_rt_hist_commit(long id, long v, long line) { CHECK; real_hist_commit(id, v, line); }
+long btw_rt_hist_revert(long id, const char *name, long line) {
+    CHECK; return real_hist_revert(id, name, line);
+}
 void btw_rt_hist_log(long id, const char *name, long is_bool) {
     CHECK; real_hist_log(id, name, is_bool);
 }
+void btw_rt_hist_blame(long id, long is_bool) { CHECK; real_hist_blame(id, is_bool); }
 long btw_rt_curl(void) { CHECK; return real_curl(); }
 """
 

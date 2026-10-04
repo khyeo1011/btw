@@ -196,8 +196,9 @@ class Checker:
         self.owner = SERVE
         self.loop_depth = 0
         self.in_global_init = False
-        # `git revert` and `git log` statements with their resolved targets, for pass 5.
-        self.history: list[tuple[ast.Revert | ast.Log, Symbol]] = []
+        # `git revert`, `git log` and `git blame` statements with their resolved
+        # targets, for pass 5.
+        self.history: list[tuple[ast.Revert | ast.Log | ast.Blame, Symbol]] = []
         # Locals, globals and constants with their declaration's span, and every
         # symbol mentioned after its declaration, for W226.
         self.declared: list[tuple[Symbol, Span]] = []
@@ -409,7 +410,7 @@ class Checker:
                 if sudo and not sym.is_const:
                     self.w100(stmt)
                 self.history.append((stmt, sym))
-            case ast.Log(name=target):
+            case ast.Log(name=target) | ast.Blame(name=target):
                 sym = self.target(target)
                 if sym is not None:
                     self.history.append((stmt, sym))
