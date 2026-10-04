@@ -130,6 +130,17 @@ def run(
     return diagnostics, exit_code
 
 
+def loadtest(
+    source: str, path: str, name: str, args: str = "n"
+) -> tuple[list[Diagnostic], str | None]:
+    """Check, then load test microservice `name` (Language Spec 9.7). The report
+    is None when hard errors blocked it; soft errors don't."""
+    program, symbols, diagnostics = check(source, path)
+    if any(d.severity is Severity.ERROR and not d.soft for d in diagnostics):
+        return diagnostics, None
+    return diagnostics, _component("loadtest").loadtest(program, symbols, name, args)
+
+
 def asm(
     source: str, path: str, annotate: bool = False
 ) -> tuple[list[Diagnostic], str | None]:

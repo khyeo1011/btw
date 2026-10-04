@@ -76,6 +76,7 @@ change.
 | `btw.suppress` | `apply(program, diagnostics)`               | the diagnostics after suppression         |
 | `btw.interp`   | `run(program, symbols, stdout, stderr)`     | the exit code                             |
 | `btw.codegen`  | `gen(program, symbols, annotate=False, source=None)` | `(assembly_text, diagnostics)` |
+| `btw.loadtest` | `loadtest(program, symbols, name, args="n")` | the report text (Language Spec 9.7)       |
 | `btw.lsp`      | `main()` (the `btw-lsp` entry point)        | nothing; serves stdio until exit          |
 
 `btw build` links with `runtime/btw_rt.c` at the repo root, as in spec 10.1.
