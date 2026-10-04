@@ -30,7 +30,8 @@ class CountingInterpreter(Interpreter):
     """The interpreter, counting each doomscroll iteration and microservice call."""
 
     def __init__(self, program: ast.Program, symbols: Symbols, budget: int) -> None:
-        super().__init__(program, symbols, io.StringIO())  # output is discarded
+        # Output is discarded, and stdin is empty (Language Spec 9.7).
+        super().__init__(program, symbols, io.StringIO(), io.BytesIO())
         self.budget = budget
         self.steps = 0
 

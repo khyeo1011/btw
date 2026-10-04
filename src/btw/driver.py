@@ -7,12 +7,13 @@ calls are listed in NOTES-harness.md.
 
 import importlib
 import importlib.resources
+import io
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from types import ModuleType
-from typing import TextIO
+from typing import BinaryIO, TextIO
 
 from btw.diagnostics import Diagnostic, Severity
 from btw.span import Pos, Span
@@ -120,13 +121,15 @@ def check(source: str, path: str):
 
 
 def run(
-    source: str, path: str, stdout: TextIO, stderr: TextIO
+    source: str, path: str, stdout: TextIO, stderr: TextIO, stdin: BinaryIO | None = None
 ) -> tuple[list[Diagnostic], int | None]:
-    """Check, then interpret. The exit code is None when errors blocked the run."""
+    """Check, then interpret, with `stdin` as `curl`'s input (empty when it's
+    None). The exit code is None when errors blocked the run."""
     program, symbols, diagnostics = check(source, path)
     if has_errors(diagnostics):
         return diagnostics, None
-    exit_code = _component("interp").run(program, symbols, stdout, stderr)
+    stdin = io.BytesIO() if stdin is None else stdin
+    exit_code = _component("interp").run(program, symbols, stdout, stderr, stdin)
     return diagnostics, exit_code
 
 

@@ -6,10 +6,14 @@ import pytest
 from btw import driver
 from btw.interp import (
     DIVISION_BY_ZERO,
+    EMPTY_REPLY,
     MAX_DEPTH,
     STACK_OVERFLOW,
+    WEIRD_REPLY,
+    RuntimeFault,
     div,
     format_value,
+    read_number,
     rem,
     wrap,
 )
@@ -304,3 +308,69 @@ def test_recursion_limit_is_restored():
     before = sys.getrecursionlimit()
     execute(program(f"    console.log depth({MAX_DEPTH})", DEPTH))
     assert sys.getrecursionlimit() == before
+
+
+# curl: Language Spec 10
+
+
+@pytest.mark.parametrize(
+    "stdin, value",
+    [
+        (b"42", 42),
+        (b"  \t\r\n\v\f-17\n", -17),
+        (b"007", 7),
+        (b"-0", 0),
+        (b"9223372036854775807", MAX),
+        (b"-9223372036854775808", MIN),
+        (b"0000000000000000000000000000001", 1),
+    ],
+)
+def test_curl_reads_a_number(stdin, value):
+    assert read_number(io.BytesIO(stdin)) == value
+
+
+@pytest.mark.parametrize("stdin", [b"", b" \n\t\r\v\f"])
+def test_curl_at_the_end_of_input(stdin):
+    with pytest.raises(RuntimeFault) as fault:
+        read_number(io.BytesIO(stdin))
+    assert (fault.value.message, fault.value.exit_code) == (EMPTY_REPLY, 52)
+
+
+@pytest.mark.parametrize(
+    "stdin",
+    [
+        b"+5",
+        b"-",
+        b"--5",
+        b"5-",
+        b"12abc",
+        b"1.5",
+        b"9223372036854775808",
+        b"-9223372036854775809",
+        b"\xc2\xa05",  # a no-break space isn't ASCII whitespace
+        b"\xd9\xa5",  # nor is an Arabic-Indic digit a digit
+    ],
+)
+def test_curl_weird_reply(stdin):
+    with pytest.raises(RuntimeFault) as fault:
+        read_number(io.BytesIO(stdin))
+    assert (fault.value.message, fault.value.exit_code) == (WEIRD_REPLY, 8)
+
+
+def test_curl_reads_one_whitespace_character_past_the_number():
+    """So an interactive run never waits for input it doesn't need."""
+    stdin = io.BytesIO(b"1\n\n2")
+    assert read_number(stdin) == 1
+    assert stdin.tell() == 2
+
+
+def test_curl_in_a_program():
+    source = program("    console.log curl + curl")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    _, code = driver.run(source, "test.btw", stdout, stderr, io.BytesIO(b"40 2"))
+    assert (stdout.getvalue(), stderr.getvalue(), code) == ("42\n", "", 0)
+
+
+def test_run_without_stdin_reads_nothing():
+    """driver.run's stdin defaults to empty input, never the process's own."""
+    assert execute(program("    console.log curl")) == ("", EMPTY_REPLY + "\n", 52)

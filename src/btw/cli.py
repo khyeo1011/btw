@@ -86,7 +86,9 @@ def cmd_check(args: argparse.Namespace, source: str) -> int:
 
 
 def cmd_run(args: argparse.Namespace, source: str) -> int:
-    diagnostics, exit_code = driver.run(source, str(args.file), sys.stdout, sys.stderr)
+    diagnostics, exit_code = driver.run(
+        source, str(args.file), sys.stdout, sys.stderr, sys.stdin.buffer
+    )
     if exit_code is None:
         report(args, source, diagnostics, sys.stderr, summary=True)
         return 1
