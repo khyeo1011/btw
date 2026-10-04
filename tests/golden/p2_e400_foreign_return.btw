@@ -1,0 +1,8 @@
+i use arch btw
+def double(n) {
+    ship it n * 2
+}
+serve localhost:3000 {
+    return 0
+}
+:wq

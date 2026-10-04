@@ -504,3 +504,29 @@ Recursive microservices and unverifiable annotations (W203) aren't checked, so t
 | a chained comparison          | E400 | Chained comparisons aren't a thing here. This isn't Python.                         |
 | `serve localhost:8080`        | E409 | Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000. |
 | CLI summary line, pretty mode | none | build failed: 2 errors, 1 warning. Skill issue. / 1 warning. LGTM anyway.           |
+
+**Foreign keywords.** The words below are ordinary identifiers (`npm install if = 1` is legal, and so is `main`). The roast replaces the E400 the statement would get anyway, so no valid program changes meaning. It fires in two places:
+
+- At the start of a statement, when the next token can't continue an expression: an identifier, a number, a string, `!`, `{` or a keyword. For `if`, `while` and `for` it also fires on a `(` whose matching `)` is followed by `{`. A plain `(` or `-` doesn't trigger it: `print(5)` calls a microservice named `print` (E404), and `return -1` is a subtraction.
+- At the top level, where any identifier is already an E400, for any word in the table.
+
+The span is the foreign word. The parser drops the statement or item, so nothing in it is checked. WORD stands for the word as written, in backticks.
+
+| Foreign word                          | btw form         | Code | Message                                                       | Quick fix (P2)      |
+| ------------------------------------- | ---------------- | ---- | ------------------------------------------------------------- | ------------------- |
+| `if`                                  | `vibe check`     | E400 | `if` is a boomer conditional. Use `vibe check`.               | Use vibe check      |
+| `else`                                | `skill issue`    | E400 | `else`? That's a `skill issue`. Literally, type `skill issue`. | Use skill issue     |
+| `while`, `for`                        | `doomscroll`     | E400 | Nobody uses WORD anymore. Use `doomscroll`, like it's 2am.    | Use doomscroll      |
+| `break`                               | `touch grass`    | E400 | Don't `break`. Go `touch grass`.                              | Use touch grass     |
+| `return`                              | `ship it`        | E400 | No returns, only deploys. Use `ship it`.                      | Use ship it         |
+| `let`, `var`                          | `npm install`    | E400 | WORD? Real variables come from `npm install`.                 | Use npm install     |
+| `const`                               | `npm install -g` | E400 | `const` is just a global install. Use `npm install -g`.       | Use npm install -g  |
+| `function`, `def`, `fn`, `func`       | `microservice`   | E400 | WORD is a monolith mindset. Use `microservice`.               | Use microservice    |
+| `print`, `printf`, `echo`, `puts`     | `console.log`    | E400 | WORD? Real developers debug with `console.log`.               | Use console.log     |
+
+The checker roasts the 404 words when one is used as a value and isn't declared. The message replaces the normal unknown-variable E404, and the span is the name.
+
+| Foreign word                          | btw form | Code | Message                                                     | Quick fix (P2) |
+| ------------------------------------- | -------- | ---- | ----------------------------------------------------------- | -------------- |
+| `true`                                | `LGTM`   | E404 | Error 404: `true` not found. Truth is `LGTM` here.          | Use LGTM       |
+| `false`, `null`, `nil`, `undefined`   | `404`    | E404 | Error 404: WORD not found. Fitting, but the keyword is `404`. | Use 404        |

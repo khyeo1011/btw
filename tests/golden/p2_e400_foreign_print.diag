@@ -1,0 +1,4 @@
+3:5: error[E400]: `print`? Real developers debug with `console.log`.
+4:5: error[E400]: `puts`? Real developers debug with `console.log`.
+5:5: error[E400]: `echo`? Real developers debug with `console.log`.
+6:5: error[E404]: Error 404: microservice `print` not found. Did you forget to deploy it?

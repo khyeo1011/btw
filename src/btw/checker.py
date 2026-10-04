@@ -72,6 +72,16 @@ def e404_variable(name: str) -> str:
     return f"Error 404: variable `{name}` not found. Did you forget to `npm install` it?"
 
 
+# Undeclared values from other languages: their btw form and roast (Language Spec 13).
+FOREIGN_VALUES = {
+    "true": ("LGTM", "Error 404: `true` not found. Truth is `LGTM` here."),
+    **{
+        word: ("404", f"Error 404: `{word}` not found. Fitting, but the keyword is `404`.")
+        for word in ("false", "null", "nil", "undefined")
+    },
+}
+
+
 def e404_microservice(name: str) -> str:
     return f"Error 404: microservice `{name}` not found. Did you forget to deploy it?"
 
@@ -458,6 +468,11 @@ class Checker:
             case ast.Var(name=name):
                 sym = self.lookup(name)
                 e.sym = sym
+                if sym is None and name in FOREIGN_VALUES:
+                    form, roast = FOREIGN_VALUES[name]
+                    fix = Fix(f"Use {form}", [Edit(e.span, form)])
+                    self.error("E404", roast, e.span, fixes=[fix])
+                    return Type.UNKNOWN
                 if sym is None:
                     self.error("E404", e404_variable(name), e.span)
                     return Type.UNKNOWN

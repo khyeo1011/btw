@@ -1,0 +1,8 @@
+i use arch btw
+let total = 0
+serve localhost:3000 {
+    var count = 1
+    npm install if = 1
+    console.log if
+}
+:wq

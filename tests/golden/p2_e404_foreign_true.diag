@@ -1,0 +1,2 @@
+3:25: error[E404]: Error 404: `true` not found. Truth is `LGTM` here.
+4:24: error[E404]: Error 404: `null` not found. Fitting, but the keyword is `404`.
