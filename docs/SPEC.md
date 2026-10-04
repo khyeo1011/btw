@@ -104,8 +104,9 @@ Block comments don't exist: `/*` lexes as `/` then `*` and becomes a syntax erro
 | GIT_REVERT        | `git revert`                                                        | undo                         | P2   |
 | GIT_LOG           | `git log`                                                           | print history                | P2   |
 | GIT_PUSH_NO_FORCE | `git push` without `--force`                                        | error token, roasted as E400 | P1   |
+| CURL              | `curl`                                                              | read a number from stdin     | P2   |
 
-Reserved words, which can't name a variable or microservice: `serve`, `sudo`, `doomscroll`, `microservice`, `LGTM`. The first words of multi-word keywords (`npm`, `git`, `vibe`, `skill`, `touch`, `ship`, `console`, `i`) are not reserved, so `i` stays usable as a loop variable. A reserved word used as a name is E400: "Syntax error: expected a name, found `sudo`."
+Reserved words, which can't name a variable or microservice: `serve`, `sudo`, `doomscroll`, `microservice`, `LGTM`, `curl`. The first words of multi-word keywords (`npm`, `git`, `vibe`, `skill`, `touch`, `ship`, `console`, `i`) are not reserved, so `i` stays usable as a loop variable. A reserved word used as a name is E400: "Syntax error: expected a name, found `sudo`."
 
 ## 2.4 Identifiers
 
@@ -158,7 +159,7 @@ return         = SHIP_IT [ expr ]           no expr when the next token is NL or
 print          = CONSOLE_LOG expr
 revert         = [ SUDO ] GIT_REVERT IDENT
 log            = GIT_LOG IDENT
-expr_stmt      = expr                       a call or a pipeline; anything else is W204
+expr_stmt      = expr                       a call, a pipeline or `curl`; anything else is W204
 
 expr           = pipeline
 pipeline       = or { "|" stage }                                   P2
@@ -171,7 +172,7 @@ additive       = multiplicative { ( "+" | "-" ) multiplicative }
 multiplicative = unary { ( "*" | "/" | "%" ) unary }
 unary          = ( "!" | "-" ) unary | postfix
 postfix        = IDENT "(" [ args ] ")" | primary
-primary        = INT | STRING | LGTM | NOT_FOUND | IDENT | "(" expr ")"
+primary        = INT | STRING | LGTM | NOT_FOUND | CURL | IDENT | "(" expr ")"
 args           = expr { "," expr }
 ```
 
@@ -223,6 +224,7 @@ The parser reports E408 itself, because only it knows the last token: when the f
 | `a && b`, `a                                                 |                               | b`      | boolean, boolean                                                                                                      | boolean | The right side isn't evaluated when the left side decides |
 | `!a`                                                         | boolean                       | boolean |                                                                                                                       |
 | `f(x, y)`                                                    | numbers                       | number  | Arity must match (E422)                                                                                               |
+| `curl`                                                       | none                          | number  | Reads the next number from stdin (section 10). Not allowed in a global initializer (E405). P2.                        |
 | `"text"`                                                     | none                          | string  | Only as the direct operand of `console.log`, or the head of a pipe that ends in `console.log`. Anywhere else is E415. |
 
 - Evaluation order is left to right everywhere: operands, arguments, pipe stages.
@@ -417,7 +419,7 @@ git log x                  prints:
 `btw loadtest FILE NAME` calls microservice NAME in the interpreter for n = 8, 16, 32 and so on up to 1024, counts the work, and puts the measured complexity next to the static one from 9.1. The static checker gives fewer than n trips only to the loop shapes of 9.1; the load test catches where that's pessimistic (a `lo`/`hi` binary search) or optimistic (`doomscroll i < n * n`).
 
 - Hard errors block it. Soft errors (E403, E417) and warnings don't, so an E417 can be measured. Diagnostics go to stderr.
-- Each size is a fresh run: global initializers in source order, then one call to NAME. `serve` doesn't run, and `console.log` and `git log` output is discarded.
+- Each size is a fresh run: global initializers in source order, then one call to NAME. `serve` doesn't run, and `console.log` and `git log` output is discarded. Stdin is empty, so a `curl` stops the sweep with `curl: (52) Empty reply from server.`
 - The call passes `n` by default. `--args 1,n,5` gives the arguments for any parameter count: numbers as written, `n` replaced by the size.
 - A step is one doomscroll iteration or one microservice call, the call to NAME included. A microservice without loops or calls takes 1 step, and recursion is measured.
 - The whole sweep has a budget of 3,000,000 steps. It stops at the first size that takes it over budget or hits a runtime error (Language Spec 10) and fits the sizes before it. At least 2 sizes must finish.
@@ -454,12 +456,15 @@ The static complexity and the SLA are formatted as in 9.1. An unverifiable or su
 
 - Order: global initializers in source order, then the `serve` body. The exit code is the value of `ship it` in `serve`, or 0. The OS keeps only the low 8 bits, so tests stay within 0 to 255.
 - `console.log` and `git log` write to stdout. Runtime errors flush stdout first, then write to stderr.
+- `curl` (P2) is the only thing that reads stdin. Stdin is a sequence of tokens separated by ASCII whitespace: space, tab, newline, carriage return, vertical tab and form feed. Each `curl` skips whitespace, reads one token and consumes the one whitespace character after it, if there is one, so it never waits for more input than it needs. A token is an optional `-` followed by one or more digits, leading zeros allowed, in the signed 64-bit range. Anything else, `+5` and `12abc` included, is the weird server reply error.
 
 | Runtime error                              | stderr, exactly                                                                | Exit code |
 | ------------------------------------------ | ------------------------------------------------------------------------------ | --------- |
 | Division or modulo by zero                 | `Runtime error: division by zero. Have you tried turning it off and on again?` | 1         |
 | More than 1,000 nested microservice calls  | `Stack overflow. Please search stackoverflow.com.`                             | 1         |
 | `git revert` on a variable with one commit | `fatal: bad revision 'x~1'`                                                    | 128       |
+| `curl` with only whitespace left on stdin  | `curl: (52) Empty reply from server.`                                          | 52        |
+| `curl` reads a token that isn't a number   | `curl: (8) Weird server reply.`                                                | 8         |
 
 The minimum number divided by -1 wraps like any other overflow: `/` gives the minimum and `%` gives 0, in both backends. x86 `idiv` traps on it, so the native code tests for a divisor of -1 first.
 
@@ -480,6 +485,7 @@ Messages contain literal backticks around code, exactly as they appear in the Te
 | E405 | error      | P0   | `touch grass` outside a loop                     | Error: `touch grass` outside a `doomscroll`. You were never scrolling.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `touch grass`                                                |                     |
 | E405 | error      | P1   | `npm install -g` inside a block                  | npm ERR! `-g` installs go at the top level.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | the keyword                                                  |                     |
 | E405 | error      | P1   | global initializer calls a microservice          | npm ERR! postinstall scripts are disabled. Globals can't call microservices.                                                                                                                                                                                                                                                                                                                                                                                                                                                              | the call                                                     |                     |
+| E405 | error      | P2   | `curl` in a global initializer                   | npm ERR! postinstall scripts can't make network calls. | `curl` | |
 | E405 | error      | P1   | microservice used as a value                     | `f` is a microservice. Call it: `f(...)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | the name                                                     |                     |
 | E405 | error      | P1   | variable called like a microservice              | `x` is a variable, not a microservice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | the name                                                     |                     |
 | E405 | error      | P2   | history on a microservice local                  | History only works on globals and variables in `serve`. Microservice locals are in detached HEAD state.                                                                                                                                                                                                                                                                                                                                                                                                                                   | the statement                                                |                     |
@@ -546,6 +552,7 @@ Diagnostics are sorted by line, then column, then code, and exact duplicates (sa
 | `ship it`                | **return.** Straight to prod. Tests are a TODO.                                                                                                                                                                                                                             |
 | `LGTM`                   | **true.** Approved without reading.                                                                                                                                                                                                                                         |
 | `404`                    | **false.** Truth not found. Also the one number you can't type.                                                                                                                                                                                                             |
+| `curl`                   | **Input.** Reads one number from stdin. The only network call this server will ever make. |
 | a TODO comment           | **Comment.** The only kind allowed. Technical debt: 3/5 TODOs used.                                                                                                                                                                                                         |
 | `// works on my machine` | **Suppression.** Silences soft errors on the next statement and ships the bug to everyone else.                                                                                                                                                                             |
 | a Big O annotation       | **SLA.** Checked by counting nested doomscrolls. Verdict: Correct! Are you an arch user as well? (when k = d) / Verdict: Go take a DSA course again. (when k ≠ d, either way) / Verdict: O(?). (recursive) / Verdict: can't verify O(sqrt n). Inferred: O(n). (unverifiable) |

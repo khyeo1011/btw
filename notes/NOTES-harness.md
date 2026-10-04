@@ -74,7 +74,7 @@ change.
 | `btw.checker`  | `check(program, comments)`                  | `(symbols, diagnostics)`                  |
 | `btw.bigo`     | `check_bigo(program, tokens=None)` (spec 8) | diagnostics (W102's fix needs the tokens) |
 | `btw.suppress` | `apply(program, diagnostics)`               | the diagnostics after suppression         |
-| `btw.interp`   | `run(program, symbols, stdout, stderr)`     | the exit code                             |
+| `btw.interp`   | `run(program, symbols, stdout, stderr, stdin)` | the exit code (stdin is binary, for `curl`) |
 | `btw.codegen`  | `gen(program, symbols, annotate=False, source=None)` | `(assembly_text, diagnostics)` |
 | `btw.loadtest` | `loadtest(program, symbols, name, args="n")` | the report text (Language Spec 9.7)       |
 | `btw.lsp`      | `main()` (the `btw-lsp` entry point)        | nothing; serves stdio until exit          |
