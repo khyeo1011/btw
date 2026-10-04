@@ -5,12 +5,14 @@ component module raises NotImplementedError. The function names the driver
 calls are listed in NOTES-harness.md.
 """
 
+import contextlib
 import importlib
 import importlib.resources
 import io
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import BinaryIO, TextIO
@@ -161,6 +163,15 @@ def asm(
     return diagnostics, text
 
 
+@contextlib.contextmanager
+def _writing(path: Path) -> Iterator[None]:
+    """Turn an OSError while writing `path` into a BtwError (exit 2)."""
+    try:
+        yield
+    except OSError as error:
+        raise BtwError(f"can't write {path}: {error.strerror}") from None
+
+
 def build(
     source: str, path: str, output: Path, keep_asm: bool = False
 ) -> tuple[list[Diagnostic], str | None]:
@@ -177,17 +188,28 @@ def build(
     if gcc is None:
         raise BtwError("gcc not found. `btw build` needs gcc to assemble and link.")
     if keep_asm:
-        output.with_name(output.name + ".s").write_text(text, encoding="utf-8")
+        asm_path = output.with_name(output.name + ".s")
+        with _writing(asm_path):
+            asm_path.write_text(text, encoding="utf-8")
     with tempfile.TemporaryDirectory() as tmp:
         assembly = Path(tmp) / "prog.s"
         assembly.write_text(text, encoding="utf-8")
+        # Link inside the temp directory, so a gcc failure is always the
+        # assembly's fault and a bad output path is reported as a file error.
+        binary = Path(tmp) / "prog"
         with importlib.resources.as_file(RUNTIME) as rt_path:
             result = subprocess.run(
-                [gcc, "-o", str(output), str(assembly), str(rt_path)],
+                [gcc, "-o", str(binary), str(assembly), str(rt_path)],
                 capture_output=True,
                 text=True,
             )
         if result.returncode == 0:
+            with _writing(output):
+                # Replace rather than overwrite, as ld does, so rebuilding a
+                # binary that is still running doesn't fail with ETXTBSY.
+                output.unlink(missing_ok=True)
+                shutil.copyfile(binary, output)
+                shutil.copymode(binary, output)
             return diagnostics, None
         e502 = Diagnostic(
             "E502",
