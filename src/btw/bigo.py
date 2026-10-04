@@ -278,21 +278,32 @@ def power(base: str, k: int, source: bool) -> str:
             return f"{base}^{k}"
 
 
+SUPERPOLYNOMIAL = "superpolynomial"
+"""The degree of an O(c^n) or O(n!) SLA: more than any degree inference finds."""
+
+type Sla = Degree | str
+
 NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 LOG_SLA = re.compile(
     rf"(?:(?P<poly>{NAME})(?:\s*\^\s*(?P<k>\d+))?\s+)?log(?:\s*\^\s*(?P<j>\d+))?\s+(?P<var>{NAME})"
 )
+EXPONENTIAL_SLA = re.compile(rf"(?P<c>\d+)\s*\^\s*(?P<var>{NAME})")
+FACTORIAL_SLA = re.compile(rf"(?P<var>{NAME})\s*!")
 
 
-def annotation(big_o: ast.BigO) -> tuple[Degree, str | None]:
-    """(degree, variable) of an SLA, UNKNOWN when it's unverifiable.
+def annotation(big_o: ast.BigO) -> tuple[Sla, str | None]:
+    """(degree, variable) of an SLA: UNKNOWN when it's unverifiable, and
+    SUPERPOLYNOMIAL for `c^n` (c at least 2) and `n!`.
 
-    The parser checks `1`, `n` and `n^k`. The log forms `log n`, `n log n`,
-    `n^k log n` and `log^j n` are read here from the source text, because
-    ast.BigO.degree is a plain int.
+    The parser checks `1`, `n` and `n^k`. The other forms are read here from
+    the source text, because ast.BigO.degree is a plain int.
     """
     if big_o.degree is not None:
         return (big_o.degree, 0), big_o.var
+    if (m := EXPONENTIAL_SLA.fullmatch(big_o.text)) and int(m["c"]) >= 2:
+        return SUPERPOLYNOMIAL, m["var"]
+    if m := FACTORIAL_SLA.fullmatch(big_o.text):
+        return SUPERPOLYNOMIAL, m["var"]
     m = LOG_SLA.fullmatch(big_o.text)
     if m is None or m["poly"] not in (None, m["var"]):
         return UNKNOWN, None
@@ -366,7 +377,7 @@ def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None)
         found.append(warning("W102", message, ms.name.span, add_sla(ms, d, tokens)))
     elif k is UNKNOWN:
         pass  # unverifiable: W203 above
-    elif k < d:
+    elif k is not SUPERPOLYNOMIAL and k < d:
         said, actual = format_complexity(k, var), format_complexity(d, var)
         text = format_complexity(d, var, source=True)
         found.append(Diagnostic(
@@ -379,7 +390,7 @@ def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None)
             help=f"try `{actual}`, then tell the PM it was always the plan",
             fixes=[Fix(f"Update SLA to {actual}", [Edit(big_o.span, text)])],
         ))
-    elif k > d:
+    elif k is SUPERPOLYNOMIAL or k > d:
         actual = format_complexity(d, var)
         message = f"Technically correct, but this is {actual}. Sandbagging your estimates?"
         fix = Fix("Tighten SLA", [Edit(big_o.span, format_complexity(d, var, source=True))])

@@ -1,18 +1,15 @@
 i use arch btw
-microservice subsets(n) O(2^n) {
-    npm install count = 1
-    npm install k = 0
-    doomscroll k < n {
-        git push --force count = count * 2
-        git push --force k = k + 1
-    }
-    npm install i = 0
-    doomscroll i < count {
+microservice root(n) O(sqrt n) {
+    npm install i = 1
+    doomscroll i * i <= n {
         git push --force i = i + 1
     }
-    ship it i
+    ship it i - 1
 }
 serve localhost:3000 {
-    console.log subsets(3)
+    console.log root(0)
+    console.log root(15)
+    console.log root(16)
+    console.log root(1000000)
 }
 :wq

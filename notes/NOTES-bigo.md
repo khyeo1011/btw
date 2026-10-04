@@ -141,9 +141,16 @@ Degrees are (poly, log) pairs now, and each doomscroll gets a trip count
 - **sudo breaks constants.** `sudo git push --force LIMIT = ...` anywhere in
   the program means LIMIT isn't a constant for trip counts.
 - **Negative literals** (`n / -2`) count as literals.
-- **Golden change, approved by the project owner:** `p1_w203_unverifiable`
-  used `O(log n)`, which is checked now. It's a 2^n subset counter with
-  `O(2^n)` instead.
+- **Superpolynomial SLAs, the project owner's call:** `O(c^n)` (literal
+  c ≥ 2) and `O(n!)` aren't W203 any more. Inference never finds them, so on
+  a loop nest they're W417, and a recursive microservice gets only W508.
+  `bigo.SUPERPOLYNOMIAL` is the one degree for both: they're never compared
+  with each other. Known false positive: a loop up to a bound doubled n
+  times really is O(2^n) but is inferred O(n), so its honest SLA gets W417.
+- **Golden changes, approved by the project owner:** `p1_w203_unverifiable`
+  used `O(log n)`, then `O(2^n)`; both are checked now, so it's an integer
+  square root with `O(sqrt n)`. `p1_w203_w508_fib` became
+  `p1_w508_fib_exponential`, with W508 only.
 - **Open: `O(log(n))`** with parentheses is still W203. Only `log n` was
   asked for.
 - **Not detected: infinite loops.** `i = 0; doomscroll i < 10 { i = i - 1 }`

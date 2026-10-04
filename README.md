@@ -87,8 +87,8 @@ error[E417]: You said O(n), but this is O(n²). Skill issue.
 
 Over-claiming is W417 ("Technically correct, but this is O(1). Sandbagging your
 estimates?"), a missing annotation is W102, recursion is W508 ("Complexity:
-O(?). The halting problem is a skill issue.") and `O(2^n)` is W203 ("I can't
-verify O(2^n). I'll take your word for it.").
+O(?). The halting problem is a skill issue.") and `O(sqrt n)` is W203 ("I can't
+verify O(sqrt n). I'll take your word for it.").
 
 ### sudo constants
 
@@ -238,10 +238,12 @@ degree is a pair (k, j), meaning O(n^k log^j n), compared k first:
 - A microservice on a cycle (direct or mutual recursion) is `O(?)`, and so is
   anything that calls it.
 
-`O(1)`, `O(n^k)`, `O(log^j n)` and `O(n^k log^j n)` are checked; anything else,
-like `O(2^n)`, is taken on trust (W203). Limits: it's a teaching heuristic, not
-a proof. Any other loop counts as n iterations, so a `lo`/`hi` binary search is
-O(n), and so is a loop up to a bound that grew to 2^n.
+`O(1)`, `O(n^k)`, `O(log^j n)` and `O(n^k log^j n)` are checked. `O(2^n)`,
+`O(c^n)` and `O(n!)` rank above all of those, so on a loop nest they're always
+W417 (sandbagging). Anything else, like `O(sqrt n)`, is taken on trust (W203).
+Limits: it's a teaching heuristic, not a proof. Any other loop counts as n
+iterations, so a `lo`/`hi` binary search is O(n), and so is a loop up to a
+bound that grew to 2^n, which makes an honest `O(2^n)` there a W417.
 
 ## Testing
 

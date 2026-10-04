@@ -211,7 +211,7 @@ def microservice_hover(program: ast.Program, ms: ast.Microservice) -> str:
     found = bigo.format_complexity(d, var)
     if k is bigo.UNKNOWN:
         return f"{header} · SLA O({ms.big_o.text}) · inferred {found}"
-    claimed = bigo.format_complexity(k, var)
+    claimed = f"O({ms.big_o.text})" if k is bigo.SUPERPOLYNOMIAL else bigo.format_complexity(k, var)
     if d is bigo.UNKNOWN:
         return f"{header} · SLA {claimed} · inferred {found}"
     return f"{header} · SLA {claimed} · inferred {found} {'✓' if k == d else '✗'}"

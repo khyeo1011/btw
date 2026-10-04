@@ -388,9 +388,21 @@ def test_log_annotations_are_checked(sla):
     assert [c for c, _ in found] == ["W417"]
 
 
-@pytest.mark.parametrize("sla", ["2^n", "n!", "n log m", "log log n", "log(n)", "n log", "sqrt n"])
+@pytest.mark.parametrize("sla", ["n^n", "1^n", "2^n log n", "n log m", "log log n", "log(n)", "n log", "sqrt n"])
 def test_other_annotations_are_unverifiable(sla):
     assert [c for c, _ in diags(f"microservice f(n) O({sla}) {{\n ship it n\n}}")] == ["W203"]
+
+
+@pytest.mark.parametrize("sla, var", [("2^n", "n"), ("3^n", "n"), ("2 ^ m", "m"), ("n!", "n"), ("m !", "m")])
+def test_superpolynomial_annotations_are_overclaims(sla, var):
+    """No loop nest is O(2^n) or O(n!) to the checker, so these always sandbag."""
+    [d] = check_bigo(program(f"microservice f({var}) O({sla}) {{\n doomscroll LGTM {{\n  {LOOP}\n }}\n}}"))
+    assert (d.code, d.message) == ("W417", f"Technically correct, but this is O({var}²). Sandbagging your estimates?")
+    assert d.fixes[0].edits[0].text == f"O({var}^2)"
+
+
+def test_superpolynomial_recursion_is_only_w508():
+    assert [c for c, _ in diags("microservice f(n) O(2^n) {\n ship it f(n - 1) + f(n - 2)\n}")] == ["W508"]
 
 
 def test_exact_log_annotations_are_clean():
@@ -436,18 +448,18 @@ def test_w508_replaces_e417_and_w417():
 
 
 def test_w203_unverifiable():
-    [d] = check_bigo(program("microservice f(n) O(2^n) {\n ship it n\n}"))
+    [d] = check_bigo(program("microservice f(n) O(sqrt n) {\n ship it n\n}"))
     assert (d.code, d.severity, d.soft) == ("W203", Severity.WARNING, True)
-    assert d.message == "I can't verify O(2^n). I'll take your word for it."
-    assert d.span == Span(Pos(1, 18), Pos(1, 24))
+    assert d.message == "I can't verify O(sqrt n). I'll take your word for it."
+    assert d.span == Span(Pos(1, 18), Pos(1, 27))
 
 
 def test_w203_skips_the_comparison():
-    assert [c for c, _ in diags(f"microservice f(n) O(2^n) {{\n {LOOP}\n}}")] == ["W203"]
+    assert [c for c, _ in diags(f"microservice f(n) O(sqrt n) {{\n {LOOP}\n}}")] == ["W203"]
 
 
 def test_w203_and_w508_together():
-    assert [c for c, _ in diags("microservice f(n) O(n!) {\n ship it f(n)\n}")] == ["W203", "W508"]
+    assert [c for c, _ in diags("microservice f(n) O(sqrt n) {\n ship it f(n)\n}")] == ["W203", "W508"]
 
 
 def test_duplicate_microservice_gets_its_own_verdict():

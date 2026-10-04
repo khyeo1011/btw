@@ -1,2 +1,1 @@
 2:14: warning[W508]: Complexity: O(?). The halting problem is a skill issue.
-2:21: warning[W203]: I can't verify O(2^n). I'll take your word for it.

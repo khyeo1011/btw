@@ -1,0 +1,1 @@
+2:23: warning[W417]: Technically correct, but this is O(n²). Sandbagging your estimates?
