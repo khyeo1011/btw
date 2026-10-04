@@ -205,3 +205,35 @@ def test_print_pretty_separates_blocks_with_a_blank_line(monkeypatch):
     print_diagnostics([E404, E404], "demo.btw", E404_SOURCE, stream, "pretty")
     block = format_pretty(E404, "demo.btw", E404_SOURCE, color=False)
     assert stream.getvalue() == f"{block}\n\n{block}\n"
+
+
+# Summary line (Language Spec 13), pretty mode only
+
+
+@pytest.mark.parametrize(
+    "diagnostics, line",
+    [
+        ([E404, E403, W410], "build failed: 2 errors, 1 warning. Skill issue."),
+        ([E404], "build failed: 1 error. Skill issue."),
+        ([W410], "1 warning. LGTM anyway."),
+        ([W410, W410], "2 warnings. LGTM anyway."),
+        ([], None),
+    ],
+)
+def test_format_summary(diagnostics, line):
+    assert printing.format_summary(diagnostics) == line
+
+
+def test_summary_ends_pretty_output(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    stream = io.StringIO()
+    print_diagnostics([W410], "demo.btw", W410_SOURCE, stream, "pretty", summary=True)
+    assert stream.getvalue().endswith("^\n\n1 warning. LGTM anyway.\n")
+
+
+def test_no_summary_in_short_mode_or_when_clean():
+    stream = io.StringIO()
+    print_diagnostics([W410], "demo.btw", W410_SOURCE, stream, "short", summary=True)
+    print_diagnostics([], "demo.btw", "", stream, "pretty", summary=True)
+    assert "LGTM" not in stream.getvalue()
+    assert stream.getvalue().count("\n") == 1

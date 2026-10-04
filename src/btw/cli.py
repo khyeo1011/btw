@@ -70,20 +70,20 @@ def read_source(path: Path) -> str:
         raise driver.BtwError(f"{path} is not valid UTF-8") from None
 
 
-def report(args: argparse.Namespace, source: str, diagnostics, stream) -> None:
-    print_diagnostics(diagnostics, str(args.file), source, stream, args.format)
+def report(args: argparse.Namespace, source: str, diagnostics, stream, summary=False) -> None:
+    print_diagnostics(diagnostics, str(args.file), source, stream, args.format, summary)
 
 
 def cmd_check(args: argparse.Namespace, source: str) -> int:
     _, _, diagnostics = driver.check(source, str(args.file))
-    report(args, source, diagnostics, sys.stdout)
+    report(args, source, diagnostics, sys.stdout, summary=True)
     return 1 if driver.has_errors(diagnostics) else 0
 
 
 def cmd_run(args: argparse.Namespace, source: str) -> int:
     diagnostics, exit_code = driver.run(source, str(args.file), sys.stdout, sys.stderr)
     if exit_code is None:
-        report(args, source, diagnostics, sys.stderr)
+        report(args, source, diagnostics, sys.stderr, summary=True)
         return 1
     return exit_code & 0xFF
 
@@ -91,7 +91,7 @@ def cmd_run(args: argparse.Namespace, source: str) -> int:
 def cmd_build(args: argparse.Namespace, source: str) -> int:
     output = args.output or args.file.with_suffix("")
     diagnostics, gcc_stderr = driver.build(source, str(args.file), output, args.keep_asm)
-    report(args, source, diagnostics, sys.stderr)
+    report(args, source, diagnostics, sys.stderr, summary=True)
     if gcc_stderr is not None:
         sys.stderr.write(gcc_stderr)
         return 3
