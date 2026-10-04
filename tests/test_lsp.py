@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from btw import driver, lsp
-from btw.span import Pos
+from btw.span import Pos, Span
 
 GOLDEN = Path(__file__).parent / "golden"
 TIMEOUT = 10
@@ -591,3 +591,86 @@ def test_semantic_tokens_in_a_pipe():
         if span.start.line == 4
     ] == [("x", "variable"), ("|", "operator"), ("f", "function"), ("|", "operator"),
           ("console.log", "function")]
+
+
+# Completion and go to definition (P2)
+
+SCOPES = """\
+i use arch btw
+npm install -g LIMIT = 10
+microservice total(n) O(1) {
+    npm install sum = n
+    ship it sum
+}
+serve localhost:3000 {
+    npm install a = 1
+    vibe check a > 0 {
+        npm install inner = 2
+
+    } skill issue vibe check a < 0 {
+        npm install other = 3
+
+    }
+    npm install b = total(a)
+
+}
+:wq
+"""
+
+
+def scope_at(line: int, col: int) -> list[str]:
+    return [sym.name for sym in lsp.in_scope(SCOPES, Pos(line - 1, col))]
+
+
+def test_names_in_scope():
+    top = ["LIMIT", "total"]
+    assert scope_at(5, 4) == top + ["n", "sum"]
+    assert scope_at(4, 4) == top + ["n"]  # not yet declared
+    assert scope_at(11, 8) == top + ["a", "inner"]
+    assert scope_at(14, 8) == top + ["a", "other"]  # the `skill issue vibe check` branch
+    assert scope_at(17, 4) == top + ["a", "b"]  # inner and other are out of scope
+    assert scope_at(16, 4) == top + ["a"]  # b's own initializer
+    assert scope_at(20, 0) == top  # after :wq
+
+
+def test_completion_items():
+    items = {item.label: item for item in lsp.completions(SCOPES, Pos(16, 4))}
+    loop = items["doomscroll"]
+    assert loop.insert_text == "doomscroll $1 {\n\t$0\n}"  # cursor in the condition first
+    assert loop.insert_text_format == lsp.types.InsertTextFormat.Snippet
+    assert items["total"].kind == lsp.types.CompletionItemKind.Function
+    assert items["total"].detail == "microservice/1"
+    assert items["LIMIT"].kind == lsp.types.CompletionItemKind.Constant
+    assert items["b"].detail == "number"
+
+
+def test_definition():
+    def at(line: int, word: str) -> Pos:
+        return Pos(line - 1, SCOPES.split("\n")[line - 1].index(word))
+
+    assert lsp.definition(SCOPES, at(16, "total")) == Span(at(3, "total"), Pos(2, 18))
+    assert lsp.definition(SCOPES, at(5, "sum")).start == at(4, "sum")
+    assert lsp.definition(SCOPES, Pos(3, len("    npm install sum = "))).start == at(3, "n)")
+    assert lsp.definition(SCOPES, at(2, "npm")) is None  # a keyword
+
+
+def test_completion_and_definition_over_the_protocol(client):
+    uri = "file:///scopes.btw"
+    open_doc(client, uri, SCOPES)
+    client.diagnostics(uri)
+    assert client.capabilities["completionProvider"] is not None
+    assert client.capabilities["definitionProvider"]
+    reply = client.request(
+        "textDocument/completion",
+        {"textDocument": {"uri": uri}, "position": {"line": 16, "character": 4}},
+    )
+    labels = [item["label"] for item in reply["result"]]
+    assert "doomscroll" in labels and "b" in labels and "inner" not in labels
+    reply = client.request(
+        "textDocument/definition",
+        {"textDocument": {"uri": uri}, "position": {"line": 15, "character": 20}},
+    )
+    assert reply["result"] == {
+        "uri": uri,
+        "range": {"start": {"line": 2, "character": 13}, "end": {"line": 2, "character": 18}},
+    }

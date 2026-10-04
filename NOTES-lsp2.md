@@ -9,7 +9,7 @@ Neovim.
 ## Files
 
 ```
-src/btw/lsp.py       code actions, semantic tokens, inlay hints
+src/btw/lsp.py       code actions, semantic tokens, inlay hints, completion, definition
 src/btw/checker.py   fixes for E426 and E403; related information for E409
 src/btw/parser.py    the fix for E408 (see "E408 lives in the parser" below)
 src/btw/hovers.py    pipe-head hover fix (see 5)
@@ -283,6 +283,27 @@ covers a pipe there as well.
 The program from `test_pipe_head_hovers`. `K` on the `x` of
 `x | f | g(y) | console.log` and on the `x` of `console.log x + 1 | f` both
 open `npm install x · number · declared on line 5`.
+
+## 6. Completion and go to definition (added later)
+
+`lsp.completions` and `lsp.definition` hold the logic, and the handlers only
+convert positions. Decisions where Implementation Spec 11 is silent:
+
+- **Keyword snippets.** Every keyword form, always offered (the client filters
+  by prefix). Block keywords put the first tab stop where you type next:
+  `doomscroll $1 {\n\t$0\n}` (the spec's example: the cursor in the
+  condition), the same for `vibe check`; `microservice` steps through name,
+  parameters and body. No context filtering: `serve` is offered inside a
+  block as well.
+- **Names in scope.** Every global, constant and microservice (whole file,
+  ignoring global init order), then, inside a microservice or `serve` body,
+  its parameters and the locals whose declaration ends before the cursor in
+  a block around it. A declaration's own initializer doesn't see its name,
+  and a sibling `vibe check` branch's locals aren't offered. Details: the
+  type, or `microservice/ARITY`.
+- **Go to definition** is the symbol's `decl_span` for the name under the
+  cursor, found with `hovers.name_at`, so pipe heads work too. A name the
+  checker couldn't resolve, a keyword or whitespace answers `null`.
 
 ## Test suite
 
