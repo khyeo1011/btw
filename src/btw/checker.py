@@ -199,8 +199,8 @@ class Checker:
     def error(self, code: str, message: str, span: Span, *, soft: bool = False, **kw) -> None:
         self.diags.append(Diagnostic(code, Severity.ERROR, message, span, soft=soft, **kw))
 
-    def warning(self, code: str, message: str, span: Span) -> None:
-        self.diags.append(Diagnostic(code, Severity.WARNING, message, span, soft=True))
+    def warning(self, code: str, message: str, span: Span, **kw) -> None:
+        self.diags.append(Diagnostic(code, Severity.WARNING, message, span, soft=True, **kw))
 
     # Symbols and scopes
 
@@ -231,7 +231,8 @@ class Checker:
             fix = Fix("Install Arch", [Edit(start, "i use arch btw\n")])
             self.error("E426", E426, Span(Pos(0, 0), Pos(1, 0)), fixes=[fix])
         if program.trailing_span is not None:
-            self.error("E410", E410, program.trailing_span)
+            fix = Fix("Delete it", [Edit(program.trailing_span, "")])
+            self.error("E410", E410, program.trailing_span, fixes=[fix])
         serves = [item for item in program.items if isinstance(item, ast.Serve)]
         if not serves:
             end = program.span.end
@@ -413,7 +414,9 @@ class Checker:
         self.error("E409", message, span, related=related)
 
     def w100(self, stmt: ast.Assign | ast.Revert) -> None:
-        self.warning("W100", W100, keyword_span(stmt.span.start, "sudo"))
+        """W100 on `sudo`; its fix deletes `sudo` and the one space after it."""
+        fix = Fix("Remove sudo", [Edit(keyword_span(stmt.span.start, "sudo "), "")])
+        self.warning("W100", W100, keyword_span(stmt.span.start, "sudo"), fixes=[fix])
 
     def e403(self, span: Span, suggestion: str) -> None:
         """E403 from the keyword through the name; its fix puts `sudo ` before the keyword."""

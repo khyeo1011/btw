@@ -22,13 +22,19 @@ tests/test_hovers.py the pipe-head hover test
 - **Which fixes.** The five in the task: Install Arch (E426), Exit Vim
   (E408), Run with sudo (E403), Update SLA (E417) and Add SLA (W102).
   `bigo.py` already filled E417, W417 and W102. The checker now fills E426
-  and E403, and the parser E408. The other P2 fixes in the catalog (Add
-  --force, Delete it, Remove sudo) are not done; Tighten SLA (W417) works
-  because `bigo.py` already had it.
+  and E403, and the parser E408. The other P2 fixes in the catalog came
+  later (see below); Tighten SLA (W417) works because `bigo.py` already had
+  it.
 - **E408 lives in the parser.** The task said to add the missing fixes in the
   checker or `bigo.py`, but E408 is reported by the parser (NOTES-harness
   question 4: `Program` keeps no span for the last token), so its fix was
   added there, in `missing_wq`, and nothing else in the parser changed.
+- **Add --force, Delete it, Remove sudo** (added later). Add --force lives in
+  the lexer, which reports that E400, and inserts ` --force` right after
+  `git push`. Delete it removes the E410 span, from the first token after
+  `:wq` to the end of file. Remove sudo deletes `sudo` and the one space
+  after it, the same single-space assumption the W100 span already makes;
+  with more spaces, the extra ones stay as indentation.
 - **The edits.**
   - Install Arch inserts `i use arch btw` and a newline at the very start.
   - Run with sudo inserts `sudo ` at the start of the E403 span (the
