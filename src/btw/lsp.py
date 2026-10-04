@@ -434,9 +434,9 @@ def locals_before(block: ast.Block, pos: Pos) -> Iterator[Symbol]:
     for stmt in block.stmts:
         if stmt.span.start >= pos:
             return
-        declared = isinstance(stmt, ast.VarDecl) and stmt.span.end <= pos
-        if declared and isinstance(stmt.name.sym, Symbol):
-            yield stmt.name.sym
+        if isinstance(stmt, ast.VarDecl) and stmt.span.end <= pos:
+            if isinstance(stmt.name.sym, Symbol):
+                yield stmt.name.sym
         for f in fields(stmt):
             child = getattr(stmt, f.name)
             while isinstance(child, ast.If) and not child.then.span.contains(pos):
