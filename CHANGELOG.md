@@ -6,6 +6,8 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-04
+
 ### Added
 
 - `curl` reads one number from stdin. At the end of input it's
@@ -30,6 +32,9 @@ All notable changes to btw are recorded here. The format follows
   that long and a reload only refetches the page. With the curl release that
   made every `curl` an E404. Every file the page loads now carries a hash of
   the build in its URL.
+- Piping btw into `head` or `less` no longer reports E500 with a traceback
+  when the reader exits early. btw exits quietly with code 141, like a native
+  binary killed by SIGPIPE.
 
 ## [0.2.0] - 2026-10-03
 
@@ -81,6 +86,7 @@ The first release.
 - Editor support for VS Code and Neovim in `editors/`.
 - Debug dumps: `btw tokens` and `btw parse`.
 
-[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/khyeo1011/btw/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/khyeo1011/btw/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/khyeo1011/btw/releases/tag/v0.1.0

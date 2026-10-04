@@ -1,6 +1,6 @@
 [project]
 name = "btw"
-version = "0.2.0"
+version = "0.3.0"
 description = "A joke programming language with a real compiler, a Big O checker and a language server"
 readme = "README.md"
 license = "MIT"
