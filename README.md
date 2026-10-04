@@ -6,9 +6,7 @@ A joke programming language built from dev memes, with a real compiler: a type
 checker, a Big O checker, an interpreter, an x86-64 native backend and a
 language server that roasts you in VS Code and Neovim.
 
-
 ![btw in VS Code: an E417 squiggle and its hover](docs/screenshot.png)
-
 
 ```
 $ uv run btw check demo/roast.btw --format short
@@ -79,12 +77,12 @@ FizzBuzz
 
 ## Demos
 
-| File                | Try                                                     | What it shows                                                                                                                                       |
-| ------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo/fizzbuzz.btw` | `btw run`, `btw build`, `btw asm --annotate`            | The program above, and the x86-64 assembly it compiles to                                                                                           |
-| `demo/roast.btw`    | `btw check`                                             | Every roast that fits in one file: 83 diagnostics in 148 lines                                                                                      |
-| `demo/bigo.btw`     | `btw check`, then `btw loadtest demo/bigo.btw grid`     | One microservice per Big O verdict, plus two the static checker gets wrong and `btw loadtest` catches                                               |
-| `demo/bench.btw`    | `time btw run`, then `btw build` and time the binary    | Counts primes below 50,000 and finds the longest Collatz chain below 30,000. Prints 5133 and 307                                                    |
+| File                | Try                                                  | What it shows                                                                                         |
+| ------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `demo/fizzbuzz.btw` | `btw run`, `btw build`, `btw asm --annotate`         | The program above, and the x86-64 assembly it compiles to                                             |
+| `demo/roast.btw`    | `btw check`                                          | Every roast that fits in one file: 83 diagnostics in 148 lines                                        |
+| `demo/bigo.btw`     | `btw check`, then `btw loadtest demo/bigo.btw grid`  | One microservice per Big O verdict, plus two the static checker gets wrong and `btw loadtest` catches |
+| `demo/bench.btw`    | `time btw run`, then `btw build` and time the binary | Counts primes below 50,000 and finds the longest Collatz chain below 30,000. Prints 5133 and 307      |
 
 A few roasts can't share a file, so `roast.btw` picks one of each pair: it has
 E426 (no arch line first) instead of W208 (a second arch line), and E408 (no
@@ -97,44 +95,44 @@ it, but `btw loadtest` doesn't.
 
 ## By the numbers
 
-|              |                                                                                                  |
-| ------------ | ------------------------------------------------------------------------------------------------ |
-| **1,200×**   | native speedup on `demo/bench.btw`: 14.9 s in the interpreter, 12.4 ms as a binary               |
-| **14 KB**    | the native FizzBuzz, C runtime included. No LLVM: btw writes the assembly, gcc links it          |
-| **83**       | diagnostics from `demo/roast.btw`, a 148-line file                                               |
-| **51**       | diagnostic messages under 31 codes, each one an HTTP status                                      |
-| **22**       | foreign keywords roasted on sight (`if`, `return`, `print`, `null`, ...)                         |
-| **1,778**    | tests, run by CI on every pull request; about 25 s locally                                       |
-| **109**      | golden programs. Each one that compiles is run in the interpreter and as a native binary         |
-| **0**        | bytes of difference allowed between the two backends' stdout, stderr and exit code               |
-| **5,156**    | lines of Python in the compiler, plus 160 lines of C runtime                                     |
-| **1**        | runtime dependency (pygls, for the language server)                                              |
-| **5**        | TODO comments allowed per file. The 6th fails the build                                          |
+|            |                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| **1,200×** | native speedup on `demo/bench.btw`: 14.9 s in the interpreter, 12.4 ms as a binary       |
+| **14 KB**  | the native FizzBuzz, C runtime included. No LLVM: btw writes the assembly, gcc links it  |
+| **83**     | diagnostics from `demo/roast.btw`, a 148-line file                                       |
+| **51**     | diagnostic messages under 31 codes, each one an HTTP status                              |
+| **22**     | foreign keywords roasted on sight (`if`, `return`, `print`, `null`, ...)                 |
+| **1,778**  | tests, run by CI on every pull request; about 25 s locally                               |
+| **109**    | golden programs. Each one that compiles is run in the interpreter and as a native binary |
+| **0**      | bytes of difference allowed between the two backends' stdout, stderr and exit code       |
+| **5,156**  | lines of Python in the compiler, plus 160 lines of C runtime                             |
+| **1**      | runtime dependency (pygls, for the language server)                                      |
+| **5**      | TODO comments allowed per file. The 6th fails the build                                  |
 
 Timings are from an AMD Ryzen 9 9950X3D; the native time is the mean of 50
 runs.
 
 ## Keywords
 
-| btw                          | Means                | Why                                     |
-| ---------------------------- | -------------------- | --------------------------------------- |
-| `i use arch btw`             | required first line  | The compiler refuses to run without it  |
-| `serve localhost:3000 { }`   | `main()`             | Every program is secretly a dev server  |
-| `:wq`                        | end of program       | The only way out, like Vim              |
-| `npm install x = 5`          | `let`                | Every variable is a dependency          |
-| `npm install -g X = 5`       | constant             | A global install                        |
-| `git push --force x = x + 1` | assignment           | Overwriting without asking              |
-| `sudo`                       | permission prefix    | Needed to change a constant             |
-| `console.log`                | print                | Real debugging, in a compiled language  |
-| `vibe check` / `skill issue` | if / else            | Branching on vibes                      |
-| `doomscroll` / `touch grass` | while / break        | Loops you can't escape                  |
-| `microservice` / `ship it`   | function / return    | Shipping straight to prod               |
-| `LGTM` / `404`               | true / false         | Code review and missing things          |
+| btw                          | Means                | Why                                    |
+| ---------------------------- | -------------------- | -------------------------------------- |
+| `i use arch btw`             | required first line  | The compiler refuses to run without it |
+| `serve localhost:3000 { }`   | `main()`             | Every program is secretly a dev server |
+| `:wq`                        | end of program       | The only way out, like Vim             |
+| `npm install x = 5`          | `let`                | Every variable is a dependency         |
+| `npm install -g X = 5`       | constant             | A global install                       |
+| `git push --force x = x + 1` | assignment           | Overwriting without asking             |
+| `sudo`                       | permission prefix    | Needed to change a constant            |
+| `console.log`                | print                | Real debugging, in a compiled language |
+| `vibe check` / `skill issue` | if / else            | Branching on vibes                     |
+| `doomscroll` / `touch grass` | while / break        | Loops you can't escape                 |
+| `microservice` / `ship it`   | function / return    | Shipping straight to prod              |
+| `LGTM` / `404`               | true / false         | Code review and missing things         |
 | `git revert x` / `git log x` | undo / print history | Undo for variables, the git way        |
-| `git blame x`                | history with lines   | Find out which line did it              |
-| `a \| f \| console.log`      | pipe                 | Desugars to `console.log f(a)`          |
-| `npm install n = curl`       | read a number        | From stdin. At EOF: `curl: (52)`        |
-| `// TODO ...`                | the only comment     | More than 5 per file fails the build    |
+| `git blame x`                | history with lines   | Find out which line did it             |
+| `a \| f \| console.log`      | pipe                 | Desugars to `console.log f(a)`         |
+| `npm install n = curl`       | read a number        | From stdin. At EOF: `curl: (52)`       |
+| `// TODO ...`                | the only comment     | More than 5 per file fails the build   |
 
 Numbers are signed 64-bit and wrap on overflow. The literal `404` is always
 false, so the number 404 is written `403 + 1`. Full language: [docs/SPEC.md](docs/SPEC.md).
@@ -452,4 +450,5 @@ uv run pytest -k p0_fizzbuzz     # one golden test
 ## AI usage
 
 AI was used for bulk of the implementation of the project. I designed the language syntax, keywords, Language specifications,
-created the task cards for each Agent to own a part of the fix/feature of the language.
+created the task cards for each Agent to own a part of the fix/feature of the language, with help from AI to polish and detail.
+AI's were given a set of Golden Tests that had to be complete before marking a task complete.
