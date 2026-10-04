@@ -690,6 +690,47 @@ def test_keep_asm(tmp_path):
     assert subprocess.run([binary], capture_output=True).stdout == b"1\n"
 
 
+@needs_gcc
+@pytest.mark.parametrize("keep_asm", [False, True])
+@pytest.mark.parametrize(
+    "output, reason",
+    [
+        ("missing/prog", "No such file or directory"),
+        ("file/prog", "Not a directory"),
+        ("dir", "Is a directory"),
+    ],
+)
+def test_bad_output_path_is_a_file_error(output, reason, keep_asm, tmp_path, capsys):
+    """A path ld can't write to isn't a compiler bug, so not E502."""
+    from btw import cli
+
+    path = tmp_path / "prog.btw"
+    path.write_text(program("    console.log 1"))
+    (tmp_path / "file").touch()
+    (tmp_path / "dir").mkdir()
+    if keep_asm:
+        (tmp_path / "dir.s").mkdir()
+    out = tmp_path / output
+    args = ["build", "--format", "short", str(path), "-o", str(out)]
+    assert cli.main(args + ["--keep-asm"] * keep_asm) == 2
+    written = out.with_name(out.name + ".s") if keep_asm else out
+    assert capsys.readouterr().err == f"btw: can't write {written}: {reason}\n"
+
+
+@needs_gcc
+def test_build_replaces_a_running_binary(tmp_path):
+    """Like ld, replace the output rather than writing into it (no ETXTBSY)."""
+    binary = tmp_path / "prog"
+    driver.build(program("    console.log curl"), "test.btw", binary)
+    running = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+    try:
+        diagnostics, gcc_stderr = driver.build(program("    console.log 1"), "test.btw", binary)
+        assert gcc_stderr is None and not driver.has_errors(diagnostics)
+    finally:
+        running.communicate(b"")
+    assert subprocess.run([binary], capture_output=True).stdout == b"1\n"
+
+
 def test_python_runs_the_cli():
     """`python -m btw asm` works, as the golden runner calls it."""
     result = subprocess.run(
