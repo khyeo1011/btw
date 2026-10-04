@@ -6,9 +6,9 @@ A joke programming language built from dev memes, with a real compiler: a type
 checker, a Big O checker, an interpreter, an x86-64 native backend and a
 language server that roasts you in VS Code and Neovim.
 
-<!-- Screenshot placeholder: save a capture of VS Code showing an E417 squiggle and a hover as docs/screenshot.png, then move this line out of the comment:
+
 ![btw in VS Code: an E417 squiggle and its hover](docs/screenshot.png)
--->
+
 
 ```
 $ uv run btw check demo/roast.btw --format short
@@ -450,4 +450,5 @@ uv run pytest -k p0_fizzbuzz     # one golden test
 
 ## AI usage
 
-<!-- Placeholder: written by the author. -->
+AI was used for bulk of the implementation of the project. I designed the language syntax, keywords, Language specifications,
+created the task cards for each Agent to own a part of the fix/feature of the language.
