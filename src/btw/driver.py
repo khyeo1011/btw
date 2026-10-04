@@ -6,6 +6,7 @@ calls are listed in NOTES-harness.md.
 """
 
 import importlib
+import importlib.resources
 import shutil
 import subprocess
 import tempfile
@@ -19,9 +20,7 @@ from btw.span import Pos, Span
 # runtime/btw_rt.c, reached through the src/btw/btw_rt.c symlink so that wheels
 # ship a copy next to this module. The repo path is the fallback for checkouts
 # where git didn't create the symlink.
-RUNTIME = Path(__file__).with_name("btw_rt.c")
-if not RUNTIME.is_file():
-    RUNTIME = Path(__file__).resolve().parents[2] / "runtime" / "btw_rt.c"
+RUNTIME = importlib.resources.files("btw") / "runtime" / "btw_rt.c"
 
 
 class BtwError(Exception):
@@ -128,7 +127,9 @@ def run(
     return diagnostics, exit_code
 
 
-def asm(source: str, path: str, annotate: bool = False) -> tuple[list[Diagnostic], str | None]:
+def asm(
+    source: str, path: str, annotate: bool = False
+) -> tuple[list[Diagnostic], str | None]:
     """Check, then generate assembly. The text is None when errors (E501 included)
     blocked it."""
     program, symbols, diagnostics = check(source, path)
@@ -163,18 +164,19 @@ def build(
     with tempfile.TemporaryDirectory() as tmp:
         assembly = Path(tmp) / "prog.s"
         assembly.write_text(text, encoding="utf-8")
-        result = subprocess.run(
-            [gcc, "-o", str(output), str(assembly), str(RUNTIME)],
-            capture_output=True,
-            text=True,
+        with importlib.resources.as_file(RUNTIME) as rt_path:
+            result = subprocess.run(
+                [gcc, "-o", str(output), str(assembly), str(rt_path)],
+                capture_output=True,
+                text=True,
+            )
+        if result.returncode == 0:
+            return diagnostics, None
+        e502 = Diagnostic(
+            "E502",
+            Severity.ERROR,
+            "Bad gateway: gcc rejected the generated assembly. "
+            "That's a compiler bug, not a skill issue.",
+            line_span(source, 0),
         )
-    if result.returncode == 0:
-        return diagnostics, None
-    e502 = Diagnostic(
-        "E502",
-        Severity.ERROR,
-        "Bad gateway: gcc rejected the generated assembly. "
-        "That's a compiler bug, not a skill issue.",
-        line_span(source, 0),
-    )
-    return sort_diagnostics([*diagnostics, e502]), result.stderr
+        return sort_diagnostics([*diagnostics, e502]), result.stderr
