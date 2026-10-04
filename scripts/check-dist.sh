@@ -28,11 +28,10 @@ require() {
 }
 
 wheel_files="$(python3 -m zipfile -l "$wheel")"
-require "$wheel_files" '^btw/btw_rt\.c ' "the wheel"
+require "$wheel_files" '^btw/runtime/btw_rt\.c ' "the wheel"
 require "$wheel_files" '\.dist-info/licenses/LICENSE ' "the wheel"
 sdist_files="$(tar tzf "$sdist")"
-require "$sdist_files" '/runtime/btw_rt\.c$' "the sdist"
-require "$sdist_files" '/src/btw/btw_rt\.c$' "the sdist"
+require "$sdist_files" '/src/btw/runtime/btw_rt\.c$' "the sdist"
 require "$sdist_files" '/LICENSE$' "the sdist"
 require "$sdist_files" '/tests/golden/p0_hello\.btw$' "the sdist"
 

@@ -37,9 +37,9 @@ requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# The wheel gets the C runtime through the src/btw/btw_rt.c symlink. The sdist
-# also carries the files needed to run the test suite from it.
-source-include = ["runtime/**", "tests/**", "docs/**", "CHANGELOG.md"]
+# The C runtime lives in the package (src/btw/runtime/), so wheel and sdist both
+# carry it. The sdist also carries the files needed to run the test suite.
+source-include = ["tests/**", "docs/**", "CHANGELOG.md"]
 source-exclude = ["**/__pycache__/**"]
 
 [dependency-groups]

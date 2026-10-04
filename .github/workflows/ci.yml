@@ -60,7 +60,7 @@ jobs:
           cache-dependency-glob: uv.lock
           python-version: "3.12"
 
-      # The wheel must carry runtime/btw_rt.c, or `btw build` fails once
+      # The wheel must carry btw/runtime/btw_rt.c, or `btw build` fails once
       # installed outside the repo.
       - name: Build
         run: uv build --no-sources
