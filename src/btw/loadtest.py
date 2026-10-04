@@ -13,7 +13,7 @@ import math
 import sys
 
 from btw import ast
-from btw.bigo import format_complexity, infer
+from btw.bigo import SUPERPOLYNOMIAL, UNKNOWN, Degree, annotation, format_complexity, infer
 from btw.checker import Symbols
 from btw.driver import BtwError
 from btw.interp import RECURSION_LIMIT, BreakSignal, Interpreter, RuntimeFault, wrap
@@ -126,25 +126,26 @@ def nearest(s: float) -> int:
     return math.floor(s + 0.5)
 
 
-def verdict(service: ast.Microservice, degree: int | None, s: float) -> list[str]:
-    """The static and measured lines of Language Spec 9.7."""
-    sla = service.big_o
-    var = sla.var if sla else None
+def verdict(service: ast.Microservice, degree: Degree, s: float) -> list[str]:
+    """The static and measured lines of Language Spec 9.7. A log factor is too
+    small to measure, so only the power of n, k of (k, j), is compared."""
+    big_o = service.big_o
+    sla, var = annotation(big_o) if big_o is not None else (UNKNOWN, None)
     static = f"static {format_complexity(degree, var)}."
-    if degree is not None and nearest(s) < degree:
+    if degree is not UNKNOWN and nearest(s) < degree[0]:
         static += " The static checker was being pessimistic."
-    elif degree is not None and nearest(s) > degree:
+    elif degree is not UNKNOWN and nearest(s) > degree[0]:
         static += " The static checker was being optimistic."
     measured = f"measured O({var or 'n'}^{round(s, 2) + 0.0:.2f})."  # + 0.0: no -0.00
-    if sla is None:
+    if big_o is None:
         measured += " No SLA, so nobody was notified."
-    elif sla.degree is None:
-        measured += f" Your SLA says O({sla.text}). I'll take your word for it."
+    elif sla is UNKNOWN or sla is SUPERPOLYNOMIAL:
+        measured += f" Your SLA says O({big_o.text}). I'll take your word for it."
     else:
-        measured += f" Your SLA says {format_complexity(sla.degree, var)}."
-        if nearest(s) > sla.degree:
+        measured += f" Your SLA says {format_complexity(sla, var)}."
+        if nearest(s) > sla[0]:
             measured += " The PM has been notified."
-        elif nearest(s) == sla.degree:
+        elif nearest(s) == sla[0]:
             measured += " LGTM."
         else:
             measured += " Sandbagging your estimates?"

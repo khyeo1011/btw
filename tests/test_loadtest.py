@@ -8,7 +8,8 @@ import pytest
 
 from btw import cli, driver
 from btw.driver import BtwError
-from btw.loadtest import SIZES, measure, slope
+from btw.bigo import UNKNOWN
+from btw.loadtest import SIZES, measure, slope, verdict
 
 GOLDEN = Path(__file__).parent / "golden"
 
@@ -34,6 +35,32 @@ HALVING = """microservice halve(n) O(n) {
 SQUARE_BOUND = """microservice square(n) O(n) {
     npm install i = 0
     doomscroll i < n * n {
+        git push --force i = i + 1
+    }
+    ship it i
+}"""
+
+BINARY_SEARCH = """microservice search(n) O(log n) {
+    npm install lo = 0
+    npm install hi = n
+    doomscroll lo < hi {
+        npm install mid = (lo + hi) / 2
+        vibe check mid > 0 {
+            git push --force hi = mid
+        } skill issue {
+            git push --force lo = mid + 1
+        }
+    }
+    ship it lo
+}"""
+
+N_LOG_N = """microservice sort(n) O(n log n) {
+    npm install i = 0
+    doomscroll i < n {
+        npm install j = n
+        doomscroll j > 1 {
+            git push --force j = j / 2
+        }
         git push --force i = i + 1
     }
     ship it i
@@ -112,12 +139,34 @@ def test_e417_is_measured_and_the_pm_is_notified():
     ]
 
 
-def test_halving_loop_static_checker_is_pessimistic():
+def test_halving_loop_sandbagged_sla():
     lines = loadtest(program(HALVING), "halve")
     assert steps(lines) == [int(math.log2(n)) + 1 for n in SIZES]
     assert lines[-2:] == [
-        "static O(n). The static checker was being pessimistic.",
+        "static O(log n).",
         "measured O(n^0.20). Your SLA says O(n). Sandbagging your estimates?",
+    ]
+
+
+def test_binary_search_static_checker_is_pessimistic():
+    """Statically E417 (a counter changed inside a vibe check runs n times),
+    empirically fine."""
+    diagnostics, text = driver.loadtest(program(BINARY_SEARCH), "test.btw", "search")
+    assert [d.code for d in diagnostics] == ["E417"]
+    lines = text.splitlines()
+    assert steps(lines) == [int(math.log2(n)) + 2 for n in SIZES]  # hi halves to 1, then lo moves
+    assert lines[-2:] == [
+        "static O(n). The static checker was being pessimistic.",
+        "measured O(n^0.18). Your SLA says O(log n). LGTM.",
+    ]
+
+
+def test_log_factors_are_not_compared():
+    lines = loadtest(program(N_LOG_N), "sort")
+    assert steps(lines) == [n * int(math.log2(n)) + n + 1 for n in SIZES]
+    assert lines[-2:] == [
+        "static O(n log n).",
+        "measured O(n^1.20). Your SLA says O(n log n). LGTM.",
     ]
 
 
@@ -141,9 +190,19 @@ def test_recursion_is_measured_until_the_stack_overflows():
 
 
 def test_unverifiable_sla_is_echoed():
-    service = HALVING.replace("O(n)", "O(log n)")
+    service = HALVING.replace("O(n)", "O(sqrt n)")
     assert loadtest(program(service), "halve")[-1] == (
-        "measured O(n^0.20). Your SLA says O(log n). I'll take your word for it."
+        "measured O(n^0.20). Your SLA says O(sqrt n). I'll take your word for it."
+    )
+
+
+@pytest.mark.parametrize("sla", ["2^n", "n!"])
+def test_superpolynomial_sla_is_echoed(sla):
+    """A power-law fit can't measure these. Checked on the verdict alone: an
+    exponential microservice would spend the whole budget."""
+    prog, _ = driver.parse(program(f"microservice f(n) O({sla}) {{\n}}"))
+    assert verdict(prog.items[0], UNKNOWN, 5.57)[-1] == (
+        f"measured O(n^5.57). Your SLA says O({sla}). I'll take your word for it."
     )
 
 

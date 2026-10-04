@@ -38,6 +38,22 @@ so the load test runs exactly the semantics `btw run` does.
    (a cubic microservice stops at n = 256 after about 6 s). A budget per size
    let a cubic one run for 18 s.
 
+## Decisions after merging #31 (pair degrees)
+
+#31 made a degree a pair (k, j), O(n^k · log^j n), and gave halving loops
+O(log n) and fixed-bound loops O(1). Three consequences for 9.7:
+
+1. **Only k is compared.** A log factor barely moves the slope over n = 8 to
+   1024 (O(log n) measures 0.18 to 0.20, O(n log n) 1.20), so `round(s)` is
+   compared with k. O(log n) and O(n log n) SLAs on matching code get LGTM.
+2. **The pessimistic example is a `lo`/`hi` binary search**, which 9.1 still
+   calls O(n) (its counter changes inside a `vibe check`). The halving loop
+   is now inferred correctly.
+3. **Superpolynomial SLAs are echoed** ("I'll take your word for it"), not
+   judged. 9.1 always gives them W417, but a power-law fit can't measure
+   c^n or n!: recursive fib with `O(2^n)`, a correct SLA, stops at n = 32
+   and fits 5.57 on two sizes. Calling that sandbagging would be wrong.
+
 ## Decisions where the spec is silent
 
 1. **The usage messages** (`btw: no microservice named `x``, the `--args`
