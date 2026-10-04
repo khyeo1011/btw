@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build the browser playground into SITE (default: _site/): the static files in
-# playground/, the btw wheel, and the example programs from tests/golden/. The
-# page runs btw on Pyodide, so the site needs no server beyond static files.
+# playground/, the btw wheel, and the example programs from tests/golden/, with
+# their .in stdin when they have one. The page runs btw on Pyodide, so the site
+# needs no server beyond static files.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,6 +17,7 @@ examples=(
     p2_git_history
     p1_w509_infinite_doomscroll
     p2_e400_foreign_print
+    p2_curl_sum
 )
 
 cd "$repo"
@@ -32,6 +34,9 @@ cp "${wheels[0]}" "$site/"
 mkdir -p "$site/examples"
 for name in "${examples[@]}"; do
     cp "tests/golden/$name.btw" "$site/examples/"
+    if [ -f "tests/golden/$name.in" ]; then
+        cp "tests/golden/$name.in" "$site/examples/"
+    fi
 done
 printf '{"wheel": "%s"}\n' "$wheel" > "$site/playground.json"
 echo "built: $site"

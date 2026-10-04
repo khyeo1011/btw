@@ -118,7 +118,8 @@
     white-space: pre;
     min-height: 3em;
   }
-  .results { display: flex; flex-direction: column; gap: 16px; }
+  .results, .inputs { display: flex; flex-direction: column; gap: 16px; }
+  #stdin { min-height: 4.5em; }
   .stderr { color: var(--error); }
   .note { color: var(--muted); }
   kbd {
@@ -142,6 +143,7 @@
     <button data-example="p2_git_history">git history</button>
     <button data-example="p1_w509_infinite_doomscroll">Doomscroll</button>
     <button data-example="p2_e400_foreign_print"><code>print</code></button>
+    <button data-example="p2_curl_sum" data-stdin><code>curl</code></button>
   </div>
 
   <div class="toolbar">
@@ -150,10 +152,16 @@
   </div>
 
   <div class="grid">
-    <section class="pane">
-      <h2><label for="source">playground.btw</label> <span class="note">· <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs</span></h2>
-      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-    </section>
+    <div class="inputs">
+      <section class="pane">
+        <h2><label for="source">playground.btw</label> <span class="note">· <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs</span></h2>
+        <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </section>
+      <section class="pane">
+        <h2><label for="stdin">stdin</label> <span class="note">· what <code>curl</code> reads</span></h2>
+        <textarea id="stdin" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </section>
+    </div>
     <div class="results">
       <section class="pane">
         <h2>Output</h2>
@@ -172,6 +180,7 @@
   const runButton = document.getElementById("run");
   const status = document.getElementById("status");
   const source = document.getElementById("source");
+  const stdin = document.getElementById("stdin");
   const output = document.getElementById("output");
   const diagnostics = document.getElementById("diagnostics");
 
@@ -278,16 +287,28 @@
         restart(`Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
       }, TIMEOUT_MS),
     };
-    worker.postMessage({ id, source: source.value });
+    worker.postMessage({ id, source: source.value, stdin: stdin.value });
   }
 
-  async function loadExample(name) {
-    const response = await fetch(`examples/${name}.btw`);
-    if (!response.ok) {
-      status.textContent = `Couldn't load the example: HTTP ${response.status}`;
+  async function fetchExample(file) {
+    const response = await fetch(`examples/${file}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.text();
+  }
+
+  // An example with data-stdin also has a .in file, its golden test's stdin.
+  async function loadExample(name, hasStdin) {
+    try {
+      const [text, input] = await Promise.all([
+        fetchExample(`${name}.btw`),
+        hasStdin ? fetchExample(`${name}.in`) : "",
+      ]);
+      source.value = text;
+      stdin.value = input;
+    } catch (error) {
+      status.textContent = `Couldn't load the example: ${error.message}`;
       return;
     }
-    source.value = await response.text();
     output.replaceChildren();
     diagnostics.textContent = "";
     run();
@@ -295,9 +316,15 @@
 
   document.getElementById("examples").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-example]");
-    if (button) loadExample(button.dataset.example);
+    if (button) loadExample(button.dataset.example, "stdin" in button.dataset);
   });
   runButton.addEventListener("click", run);
+  stdin.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      run();
+    }
+  });
   source.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -309,7 +336,7 @@
   });
 
   startWorker();
-  loadExample("p0_fizzbuzz");
+  loadExample("p0_fizzbuzz", false);
 </script>
 </body>
 </html>

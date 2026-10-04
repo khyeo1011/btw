@@ -27,7 +27,7 @@ onmessage = async ({ data }) => {
   const play = await ready;
   try {
     postMessage({ type: "diagnostics", id: data.id, text: play.check(data.source) });
-    postMessage({ type: "result", id: data.id, ...JSON.parse(play.run(data.source)) });
+    postMessage({ type: "result", id: data.id, ...JSON.parse(play.run(data.source, data.stdin)) });
   } catch (error) {
     postMessage({ type: "result", id: data.id, crash: String(error) });
   }
