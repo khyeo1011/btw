@@ -3,6 +3,7 @@ i use arch btw
 // TODO: globals
 console.log "serverless"
 npm install -g SEED = seed()
+npm install -g PING = curl
 break
 npm install -g HUGE = 9223372036854775808
 function legacy() {
