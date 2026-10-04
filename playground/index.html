@@ -483,6 +483,7 @@ microservice twoSum(n, target) {
       ]);
       source.value = text;
       stdin.value = input;
+      save("playground");
     } catch (error) {
       status.textContent = `Couldn't load the example: ${error.message}`;
       return;
@@ -514,6 +515,7 @@ microservice twoSum(n, target) {
       } else if (event.key === "Tab" && !event.shiftKey) {
         event.preventDefault();
         textarea.setRangeText("    ", textarea.selectionStart, textarea.selectionEnd, "end");
+        textarea.dispatchEvent(new Event("input")); // setRangeText doesn't fire it
       }
     });
   }
@@ -533,6 +535,36 @@ microservice twoSum(n, target) {
 
   function fill(tab, data) {
     for (const [name, field] of Object.entries(TABS[tab].fields)) field.value = data[name] ?? "";
+  }
+
+  // Each tab keeps its draft in localStorage, which a private window can
+  // refuse: then the page just forgets.
+  function save(tab) {
+    try {
+      localStorage.setItem(`btw:${tab}`, JSON.stringify(contents(tab)));
+    } catch {}
+  }
+
+  function restore(tab) {
+    try {
+      const draft = localStorage.getItem(`btw:${tab}`);
+      if (draft === null) return false;
+      fill(tab, JSON.parse(draft));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  for (const [tab, { fields }] of Object.entries(TABS)) {
+    for (const field of Object.values(fields)) {
+      field.addEventListener("input", () => {
+        save(tab);
+        // After Share, the link is still in the address bar, and a reload
+        // would open it over these edits.
+        if (location.hash.includes("/")) history.replaceState(null, "", `#${tab}`);
+      });
+    }
   }
 
   // A tab's address is its panel's id, so #two-sum opens Two Sum.
@@ -579,8 +611,8 @@ microservice twoSum(n, target) {
     button.addEventListener("click", () => share(button.dataset.share));
   }
 
-  // Opens the tab the address names. A share link also fills it, runs the
-  // playground, and returns the tab.
+  // Opens the tab the address names. A share link also fills it, over its
+  // draft, runs the playground, and returns the tab.
   async function openLink() {
     const [tab, data] = location.hash.slice(1).split("/");
     if (!(tab in TABS)) return null;
@@ -588,6 +620,7 @@ microservice twoSum(n, target) {
     if (!data) return null;
     try {
       fill(tab, await unpack(data));
+      save(tab);
       if (tab === "playground") run();
     } catch {
       TABS[tab].out.replaceChildren(line("That share link is broken. Was it cut off?", "stderr"));
@@ -598,8 +631,12 @@ microservice twoSum(n, target) {
 
   listTests();
   startWorker();
+  restore("two-sum");
+  const hasDraft = restore("playground");
   openLink().then((tab) => {
-    if (tab !== "playground") loadExample("p0_fizzbuzz", false);
+    if (tab === "playground") return; // the link ran its code, or said it's broken
+    if (hasDraft) run();
+    else loadExample("p0_fizzbuzz", false);
   });
 </script>
 </body>
