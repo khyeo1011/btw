@@ -466,6 +466,9 @@ class Codegen:
                     self.push("rax")
             case ast.BoolLit(value=value):
                 self.push("1" if value else "0", "LGTM" if value else "404")
+            case ast.Curl():
+                self.call("btw_rt_curl")
+                self.push("rax", "curl")
             case ast.Var(sym=sym):
                 self.push(self.location(sym), sym.name)
             case ast.Unary(op="-", operand=operand):
