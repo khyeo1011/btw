@@ -1,0 +1,9 @@
+i use arch btw
+serve localhost:3000 {
+    npm install ready = true
+    npm install done = null
+    vibe check ready == done {
+        console.log 1
+    }
+}
+:wq

@@ -235,9 +235,23 @@ SERVE = "serve localhost:3000 {\n console.log 1\n}\n"
             "W102",
             "Add SLA O(n)",
         ),
+        (
+            "i use arch btw\nserve localhost:3000 {\n npm install x = 2\n"
+            " if (x > 1) {\n  console.log x\n }\n}\n:wq\n",
+            "E400",
+            "Use vibe check",
+        ),
+        (
+            "i use arch btw\nconst X = 1\nserve localhost:3000 {\n console.log 1\n}\n:wq\n",
+            "E400",
+            "Use npm install -g",
+        ),
+        ("i use arch btw\nserve localhost:3000 {\n console.log true\n}\n:wq\n", "E404", "Use LGTM"),
+        ("i use arch btw\nserve localhost:3000 {\n console.log !null\n}\n:wq\n", "E404", "Use 404"),
     ],
     ids=["e426", "e408", "e408_no_final_newline", "e408_comment_line", "e408_trailing_comment",
-         "e403_push", "e403_revert", "e417", "w102"],
+         "e403_push", "e403_revert", "e417", "w102", "e400_foreign_if", "e400_foreign_const",
+         "e404_foreign_true", "e404_foreign_null"],
 )
 def test_quick_fixes_round_trip(client, source, code, title):
     """Every diagnostic of `code` offers `title`, and applying all of them
