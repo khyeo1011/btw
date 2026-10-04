@@ -1,6 +1,6 @@
 """Hover text (Language Spec 12)."""
 
-from btw import hovers
+from btw import driver, hovers
 from btw.span import Pos
 
 SOURCE = """\
@@ -63,9 +63,39 @@ def test_todo_counts_the_whole_file():
 
 
 def test_variables():
-    assert text_at(3, "count") == "`npm install count` · number · declared on line 3"
-    assert text_at(8, "x") == "`npm install x` · number · declared on line 7"
-    assert text_at(24, "ok") == "`npm install ok` · boolean · declared on line 22"
+    assert text_at(3, "count") == "`npm install count` · number · declared on line 3 · 1 commit"
+    assert text_at(8, "x") == "`npm install x` · number · declared on line 7"  # no history
+    assert text_at(24, "ok") == "`npm install ok` · boolean · declared on line 22 · 1 commit"
+
+
+HISTORY = """\
+i use arch btw
+npm install g = 0
+serve localhost:3000 {
+    npm install x = 1
+    git push --force x = 2
+    sudo git push --force x = 3
+    git revert x
+    vibe check LGTM { npm install t = 9 }
+    vibe check LGTM { npm install t = 9
+        git push --force t = 8 }
+    git push --force g = 1
+    npm install many = 0
+    MANY
+    console.log x + g + many
+}
+:wq
+""".replace("    MANY\n", "    git push --force many = 1\n" * 20)
+
+
+def test_variables_count_commits():
+    """The declaration plus every push and revert on that same symbol (P2)."""
+    assert text_at(4, "x", source=HISTORY).endswith("declared on line 4 · 4 commits")
+    assert text_at(8, "t =", source=HISTORY).endswith("declared on line 8 · 1 commit")
+    assert text_at(9, "t =", source=HISTORY).endswith("declared on line 9 · 2 commits")
+    assert text_at(2, "g", source=HISTORY).endswith("declared on line 2 · 2 commits")
+    assert text_at(12, "many", source=HISTORY).endswith(" · 16 commits")  # history keeps 16
+    assert [d.code for d in driver.check(HISTORY, "history.btw")[2]] == ["W100"]  # the sudo
 
 
 def test_constant():
@@ -145,9 +175,9 @@ serve localhost:3000 {
 def test_pipe_head_hovers():
     """A desugared stage has its own span, not its first argument's (Language
     Spec 9.4), so the head of a pipe must still be found."""
-    assert text_at(7, "x", source=PIPES) == "`npm install x` · number · declared on line 5"
-    assert text_at(8, "x", source=PIPES) == "`npm install x` · number · declared on line 5"
-    assert text_at(7, "y", source=PIPES) == "`npm install y` · number · declared on line 6"
+    assert text_at(7, "x", source=PIPES) == "`npm install x` · number · declared on line 5 · 1 commit"
+    assert text_at(8, "x", source=PIPES) == "`npm install x` · number · declared on line 5 · 1 commit"
+    assert text_at(7, "y", source=PIPES) == "`npm install y` · number · declared on line 6 · 1 commit"
     assert text_at(7, "f", source=PIPES).startswith("`microservice f(n)`")
     assert text_at(7, "g", source=PIPES).startswith("`microservice g(n, m)`")
     assert text_at(7, "console.log", source=PIPES) == "**print.** Real debugging, in a compiled language."
