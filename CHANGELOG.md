@@ -6,6 +6,8 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-04
+
 ### Added
 
 - The playground's Output pane has an x86-64 view: the program's annotated
@@ -18,6 +20,17 @@ All notable changes to btw are recorded here. The format follows
   share link wins over the saved draft.
 - After 6/6, the Two Sum tests give a verdict with twoSum's inferred
   runtime: "Accepted. Runtime: O(n²). Beats 0% of hash maps."
+- Differential fuzz tests: seeded, well-typed random programs must pass the
+  checker, run in the interpreter, and give the same stdout, stderr and exit
+  code as a native build. `pytest --fuzz N` sets the number of seeds
+  (default 100).
+
+### Fixed
+
+- `btw build -o OUT` where OUT can't be written (a missing directory, a path
+  under a file, a directory) reported E502, a compiler bug, and `--keep-asm`
+  crashed with an internal error. Both are now
+  `btw: can't write OUT: <reason>` with exit code 2.
 
 ## [0.3.0] - 2026-10-04
 
@@ -99,7 +112,8 @@ The first release.
 - Editor support for VS Code and Neovim in `editors/`.
 - Debug dumps: `btw tokens` and `btw parse`.
 
-[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/khyeo1011/btw/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/khyeo1011/btw/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/khyeo1011/btw/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/khyeo1011/btw/releases/tag/v0.1.0
