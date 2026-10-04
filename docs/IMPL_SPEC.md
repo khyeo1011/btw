@@ -227,6 +227,8 @@ Types: NUMBER, BOOLEAN, STRING, UNKNOWN, defined as `Type` in `ast.py`. UNKNOWN 
 
 - Resolve calls by name straight against the list of microservices, so this module doesn't depend on the checker. Unknown names are ignored.
 - Memoized depth-first search with three states per microservice: unvisited, in progress, done. Reaching an in-progress microservice means a cycle: mark everything on the current path from it as UNKNOWN. P0 only needs the self-call check.
+- A degree is a pair (poly, log), so plain tuple comparison orders them. The trip count of each doomscroll (Language Spec 9.1) needs the statement before it and the names declared so far, so the walk tracks the parameters and locals in scope instead of asking the checker.
+- The parser classifies only `1`, `n` and `n^k` into `BigO.degree`. The log forms leave it none, and `bigo.py` reads them from `BigO.text`.
 - While computing degrees, also return the span of the innermost doomscroll on the deepest path. It feeds the related information and the hover ("2 nested doomscrolls").
 - Expose `infer(program)` for hover and inlay hints, `check_bigo(program)` for diagnostics, and `format_complexity(degree, var)`.
 

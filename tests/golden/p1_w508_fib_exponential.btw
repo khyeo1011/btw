@@ -1,0 +1,13 @@
+i use arch btw
+microservice fib(n) O(2^n) {
+    vibe check n < 2 {
+        ship it n
+    }
+    ship it fib(n - 1) + fib(n - 2)
+}
+serve localhost:3000 {
+    console.log fib(0)
+    console.log fib(1)
+    console.log fib(10)
+}
+:wq

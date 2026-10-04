@@ -1,8 +1,15 @@
 i use arch btw
-microservice half(n) O(log n) {
-    ship it n / 2
+microservice root(n) O(sqrt n) {
+    npm install i = 1
+    doomscroll i * i <= n {
+        git push --force i = i + 1
+    }
+    ship it i - 1
 }
 serve localhost:3000 {
-    console.log half(8)
+    console.log root(0)
+    console.log root(15)
+    console.log root(16)
+    console.log root(1000000)
 }
 :wq

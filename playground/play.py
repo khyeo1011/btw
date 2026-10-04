@@ -1,0 +1,40 @@
+"""The playground's bridge to btw. Like `btw run`, but the diagnostics always
+show, since the roasts are the point, and they come first, so a program the
+playground stops for running too long still gets its roast."""
+
+import io
+import json
+
+from btw import driver
+from btw.printing import format_pretty, format_summary
+
+PATH = "playground.btw"
+
+
+def check(source: str) -> str:
+    """The diagnostics, pretty without color, and the summary line."""
+    try:
+        _, _, diagnostics = driver.check(source, PATH)
+    except Exception:
+        diagnostics = [driver.internal_error(source)]
+    blocks = [format_pretty(d, PATH, source, False) for d in diagnostics]
+    if summary := format_summary(diagnostics):
+        blocks.append(summary)
+    return "\n\n".join(blocks)
+
+
+def run(source: str) -> str:
+    """Return JSON: stdout, stderr and the exit code, which is null when errors
+    blocked the run."""
+    stdout, stderr = io.StringIO(), io.StringIO()
+    try:
+        _, exit_code = driver.run(source, PATH, stdout, stderr)
+    except Exception:
+        exit_code = None  # check() already reported E500
+    return json.dumps(
+        {
+            "stdout": stdout.getvalue(),
+            "stderr": stderr.getvalue(),
+            "exit": None if exit_code is None else exit_code & 0xFF,
+        }
+    )
