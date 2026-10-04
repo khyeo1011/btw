@@ -6,6 +6,8 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Added
 
 - `btw loadtest FILE NAME`: runs a microservice for n = 8 to 1024 in the
@@ -15,12 +17,28 @@ All notable changes to btw are recorded here. The format follows
   are O(log n), and log and exponential SLAs are checked.
 - W226 for unused variables.
 - LSP completion and go to definition.
+- The Add --force, Delete it and Remove sudo quick fixes.
+- Variable hovers show the commit count.
+- The pretty-mode summary line after `btw check`, `run` and `build`:
+  `build failed: 2 errors, 1 warning. Skill issue.`
 - The browser playground at [btw.sebastianyeo.dev](https://btw.sebastianyeo.dev),
   running btw on Pyodide.
 - `demo/`: `fizzbuzz.btw`, `roast.btw` (every roast that fits in one file),
   `bigo.btw` and `bench.btw`.
 
-## [0.1.0] - unreleased
+### Changed
+
+- Release assets are standalone `btw` and `btw-lsp` ELF executables for Linux
+  x86-64 that need no Python, instead of the wheel and sdist.
+
+### Fixed
+
+- The minimum number divided by -1 wraps (`/` gives the minimum, `%` gives 0)
+  instead of crashing native builds with SIGFPE.
+- A top-level syntax error no longer swallows a `microservice` or `serve` on
+  the same line, which cascaded into a spurious E503.
+
+## [0.1.0] - 2026-10-03
 
 The first release.
 
@@ -37,8 +55,7 @@ The first release.
   actions, semantic tokens and inlay hints.
 - Editor support for VS Code and Neovim in `editors/`.
 - Debug dumps: `btw tokens` and `btw parse`.
-- Release assets: standalone `btw` and `btw-lsp` ELF executables for Linux
-  x86-64 that need no Python.
 
-[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/khyeo1011/btw/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/khyeo1011/btw/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/khyeo1011/btw/releases/tag/v0.1.0
