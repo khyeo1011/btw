@@ -643,6 +643,7 @@ def test_completion_items():
     assert items["total"].detail == "microservice/1"
     assert items["LIMIT"].kind == lsp.types.CompletionItemKind.Constant
     assert items["b"].detail == "number"
+    assert items["git blame"].insert_text == "git blame $0"
 
 
 def test_definition():
@@ -685,3 +686,13 @@ def test_curl_is_a_function_like_console_log():
         for span, kind, _ in lsp.classify(source)
     }
     assert kinds["curl"] == kinds["console.log"] == "function"
+
+
+def test_git_blame_is_a_keyword_like_git_log():
+    source = "i use arch btw\nserve localhost:3000 {\n    npm install x = 1\n    git log x\n    git blame x\n}\n:wq\n"
+    lines = source.split("\n")
+    kinds = {
+        lines[span.start.line][span.start.col : span.end.col]: kind
+        for span, kind, _ in lsp.classify(source)
+    }
+    assert kinds["git blame"] == kinds["git log"] == "keyword"

@@ -169,6 +169,13 @@ class Log(Node):
 
 
 @dataclass
+class Blame(Node):
+    """P2."""
+
+    name: Var
+
+
+@dataclass
 class ExprStmt(Node):
     expr: Expr
 

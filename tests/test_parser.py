@@ -282,10 +282,11 @@ def test_declarations_and_assignments():
 
 
 def test_history_statements():
-    a, b, c = stmts("git revert x\nsudo git revert X\ngit log x")
+    a, b, c, d = stmts("git revert x\nsudo git revert X\ngit log x\ngit blame y")
     assert isinstance(a, ast.Revert) and not a.sudo
     assert isinstance(b, ast.Revert) and b.sudo and b.span == sp(4, 1, 4, 18)
     assert isinstance(c, ast.Log) and c.name.name == "x"
+    assert isinstance(d, ast.Blame) and d.name.name == "y" and d.span == sp(6, 1, 6, 12)
 
 
 def test_break_and_expression_statements():
@@ -761,6 +762,7 @@ def test_top_level_statement():
         ("ship it", "ship it"),
         ("git revert x", "git revert"),
         ("git log x", "git log"),
+        ("git  blame x", "git blame"),
     ],
 )
 def test_top_level_statement_keywords(src, shown):

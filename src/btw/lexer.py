@@ -21,6 +21,7 @@ KEYWORDS: list[tuple[K, tuple[str, ...]]] = [
     (K.GIT_PUSH_NO_FORCE, ("git", "push")),
     (K.GIT_REVERT, ("git", "revert")),
     (K.GIT_LOG, ("git", "log")),
+    (K.GIT_BLAME, ("git", "blame")),
     (K.CONSOLE_LOG, ("console.log",)),
     (K.VIBE_CHECK, ("vibe", "check")),
     (K.SKILL_ISSUE, ("skill", "issue")),
