@@ -8,6 +8,9 @@ All notable changes to btw are recorded here. The format follows
 
 ### Added
 
+- The playground's Output pane has an x86-64 view: the program's annotated
+  assembly, as `btw asm --annotate` prints it, generated before the run so a
+  program stopped for running too long still shows it.
 - Playground links: `#two-sum` opens the Two Sum tab, and Share puts the
   tab's code (and the playground's stdin) in the URL, compressed with the
   browser's `CompressionStream`.

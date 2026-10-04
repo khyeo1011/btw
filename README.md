@@ -104,7 +104,7 @@ it, but `btw loadtest` doesn't.
 | **83**       | diagnostics from `demo/roast.btw`, a 148-line file                                               |
 | **51**       | diagnostic messages under 31 codes, each one an HTTP status                                      |
 | **22**       | foreign keywords roasted on sight (`if`, `return`, `print`, `null`, ...)                         |
-| **1,556**    | tests, run by CI on every pull request, in about 20 s                                            |
+| **1,557**    | tests, run by CI on every pull request, in about 20 s                                            |
 | **109**      | golden programs. Each one that compiles is run in the interpreter and as a native binary         |
 | **0**        | bytes of difference allowed between the two backends' stdout, stderr and exit code               |
 | **5,125**    | lines of Python in the compiler, plus 160 lines of C runtime                                     |

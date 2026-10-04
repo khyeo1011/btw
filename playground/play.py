@@ -43,6 +43,21 @@ def run(source: str, stdin: str = "") -> str:
     )
 
 
+def asm(source: str) -> str:
+    """What `btw asm --annotate` prints, or why there's none. The checker's
+    errors already show as diagnostics, but E501, the native backend's, shows
+    only here."""
+    try:
+        diagnostics, text = driver.asm(source, PATH, annotate=True)
+    except Exception:
+        return "The code generator crashed. `btw asm` shows the real error."
+    if text is not None:
+        return text
+    e501 = [d for d in diagnostics if d.code == "E501"]
+    blocks = [format_pretty(d, PATH, source, False) for d in e501]
+    return "\n\n".join(blocks) or "Errors blocked the build."
+
+
 def runtime(source: str, name: str) -> str:
     """Return JSON: microservice `name`'s degree as the hover infers it,
     [poly, log] or null for O(?), and its O(). null when there's no such

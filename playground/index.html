@@ -124,6 +124,18 @@
     color: var(--muted);
   }
   .pane h2 label, .pane h2 .note { text-transform: none; letter-spacing: 0; }
+  .pane h2 [aria-pressed] {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .pane h2 [aria-pressed="true"] { color: var(--text); }
+  .pane h2 [data-show="asm"] { text-transform: none; letter-spacing: 0; }
+  #asm { max-height: 70vh; overflow: auto; }
   textarea, pre {
     margin: 0;
     padding: 12px;
@@ -200,8 +212,9 @@
     </div>
     <div class="results">
       <section class="pane">
-        <h2>Output</h2>
+        <h2 id="views"><button aria-pressed="true" data-show="output">Output</button> / <button aria-pressed="false" data-show="asm">x86-64</button></h2>
         <pre id="output"></pre>
+        <pre id="asm" hidden></pre>
       </section>
       <section class="pane">
         <h2>Diagnostics</h2>
@@ -260,6 +273,7 @@ microservice twoSum(n, target) {
   const stdin = document.getElementById("stdin");
   const output = document.getElementById("output");
   const diagnostics = document.getElementById("diagnostics");
+  const asm = document.getElementById("asm");
   const testButton = document.getElementById("test");
   const solution = document.getElementById("solution");
   const tests = document.getElementById("tests");
@@ -279,7 +293,7 @@ microservice twoSum(n, target) {
   let worker = null;
   let ready = false;
   let queued = null; // run or runTests, asked for before the worker was ready
-  let pending = null; // { id, timer, started, out, diagnostics, done }
+  let pending = null; // { id, timer, started, out, diagnostics, asm, done }
   let nextId = 0;
 
   function setBusy(busy) {
@@ -305,6 +319,8 @@ microservice twoSum(n, target) {
         status.textContent = `The playground failed to load: ${data.error}`;
       } else if (data.type === "diagnostics" && pending && data.id === pending.id) {
         pending.diagnostics.textContent = data.text || "No diagnostics.";
+      } else if (data.type === "asm" && pending && data.id === pending.id) {
+        pending.asm.textContent = data.text;
       } else if (data.type === "result" && pending && data.id === pending.id) {
         clearTimeout(pending.timer);
         const ms = Math.round(performance.now() - pending.started);
@@ -360,10 +376,11 @@ microservice twoSum(n, target) {
   }
 
   // Runs `sources` on the worker, `out` and `diagnostics` show the results and
-  // `done(runs, ms, runtime)` fills in `out`. `runtime` names a microservice
-  // to infer the O() of. `again` is run or runTests, whichever asked, for when
-  // the worker has to start first.
-  function submit(again, { sources, stdin = "", runtime = null, out, diagnostics, done }) {
+  // `done(runs, ms, runtime)` fills in `out`. With `asm`, it also shows the
+  // first program's assembly, and `runtime` names a microservice to infer the
+  // O() of. `again` is run or runTests, whichever asked, for when the worker
+  // has to start first.
+  function submit(again, { sources, stdin = "", runtime = null, out, diagnostics, asm, done }) {
     if (!ready) {
       queued = again;
       return;
@@ -383,10 +400,12 @@ microservice twoSum(n, target) {
     status.textContent = "Running…";
     out.replaceChildren();
     diagnostics.textContent = "";
+    if (asm) asm.textContent = "";
     pending = {
       id,
       out,
       diagnostics,
+      asm,
       done,
       started: performance.now(),
       timer: setTimeout(() => {
@@ -394,11 +413,11 @@ microservice twoSum(n, target) {
         restart(out, `Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
       }, TIMEOUT_MS),
     };
-    worker.postMessage({ id, sources, stdin, runtime });
+    worker.postMessage({ id, sources, stdin, asm: Boolean(asm), runtime });
   }
 
   function run() {
-    submit(run, { sources: [source.value], stdin: stdin.value, out: output, diagnostics, done: show });
+    submit(run, { sources: [source.value], stdin: stdin.value, out: output, diagnostics, asm, done: show });
   }
 
   // btw has no arrays, so each test's array becomes a microservice, nums, and
@@ -504,6 +523,7 @@ microservice twoSum(n, target) {
     }
     output.replaceChildren();
     diagnostics.textContent = "";
+    asm.textContent = "";
     run();
   }
 
@@ -512,6 +532,16 @@ microservice twoSum(n, target) {
     if (button) loadExample(button.dataset.example, "stdin" in button.dataset);
   });
   runButton.addEventListener("click", run);
+  // Output or x86-64: the same run fills both, and this picks which shows.
+  const views = document.querySelectorAll("#views [data-show]");
+  for (const view of views) {
+    view.addEventListener("click", () => {
+      for (const other of views) {
+        other.setAttribute("aria-pressed", other === view);
+        document.getElementById(other.dataset.show).hidden = other !== view;
+      }
+    });
+  }
   testButton.addEventListener("click", runTests);
   stdin.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
