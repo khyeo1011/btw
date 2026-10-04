@@ -28,6 +28,7 @@ class TokenKind(Enum):
     SHIP_IT = auto()
     LGTM = auto()
     NOT_FOUND = auto()
+    CURL = auto()
     # values
     IDENT = auto()
     INT = auto()

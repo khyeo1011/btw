@@ -148,6 +148,7 @@ E403 = "Permission denied. Are you root?"
 E405_TOUCH_GRASS = "Error: `touch grass` outside a `doomscroll`. You were never scrolling."
 E405_GLOBAL_FLAG = "npm ERR! `-g` installs go at the top level."
 E405_POSTINSTALL = "npm ERR! postinstall scripts are disabled. Globals can't call microservices."
+E405_CURL = "npm ERR! postinstall scripts can't make network calls."
 E406 = "Error: comments must be `// TODO`. Documentation is a TODO."
 E409_SERVE = "Error: port 3000 is already in use."
 E410 = "Error: code after `:wq`. You already left Vim."
@@ -414,7 +415,7 @@ class Checker:
                     self.history.append((stmt, sym))
             case ast.ExprStmt(expr=expr):
                 self.expr(expr)
-                if not isinstance(expr, ast.Call | ast.ErrorExpr):
+                if not isinstance(expr, ast.Call | ast.Curl | ast.ErrorExpr):
                     self.warning("W204", W204, expr.span)
 
     def e409(self, message: str, span: Span, first: Symbol) -> None:
@@ -479,6 +480,10 @@ class Checker:
                 return Type.STRING
             case ast.ErrorExpr():
                 return Type.UNKNOWN
+            case ast.Curl():
+                if self.in_global_init:
+                    self.error("E405", E405_CURL, e.span)
+                return Type.NUMBER
             case ast.Var(name=name):
                 sym = self.lookup(name)
                 e.sym = sym

@@ -459,3 +459,23 @@ def test_no_w226_in_a_file_with_a_syntax_error():
 def test_w226_is_suppressible():
     src = wrap("// works on my machine\nnpm install x = 1")
     assert [d.code for d in driver.check(src, "t.btw")[2]] == ["W200"]
+
+
+# curl (P2)
+
+
+def test_curl_is_a_number():
+    assert short(run_check(wrap("    vibe check curl { }"))[2]) == [
+        "3:16 E418 I'm a teapot: `vibe check` needs LGTM or 404, got a number."
+    ]
+
+
+def test_curl_in_a_global_initializer():
+    src = wrap("    console.log X + y", top="npm install -g X = 1 + curl\nnpm install y = X\n")
+    assert short(run_check(src)[2]) == [
+        "2:24 E405 npm ERR! postinstall scripts can't make network calls."
+    ]
+
+
+def test_curl_statement_does_something():
+    assert codes(wrap("    curl")) == []

@@ -41,6 +41,7 @@ SPELLING: dict[K, str] = {
     K.SHIP_IT: "ship it",
     K.LGTM: "LGTM",
     K.NOT_FOUND: "404",
+    K.CURL: "curl",
 }
 
 # Tokens that can only start a statement, so at top level they get the
@@ -59,7 +60,7 @@ STATEMENT_ONLY = {
 
 ITEM_START = {K.NPM_INSTALL, K.NPM_INSTALL_G, K.MICROSERVICE, K.SERVE}
 
-EXPR_START = {K.INT, K.STRING, K.LGTM, K.NOT_FOUND, K.IDENT, K.LPAREN, K.BANG, K.MINUS}
+EXPR_START = {K.INT, K.STRING, K.LGTM, K.NOT_FOUND, K.CURL, K.IDENT, K.LPAREN, K.BANG, K.MINUS}
 
 # Binary operators: precedence level (Language Spec 3.1) and whether the
 # level is non-associative. Pipes (level 1) are handled apart, in `expr`.
@@ -758,6 +759,9 @@ class _Parser:
             case K.LGTM | K.NOT_FOUND:
                 self.advance()
                 return ast.BoolLit(tok.kind is K.LGTM, span=tok.span)
+            case K.CURL:
+                self.advance()
+                return ast.Curl(span=tok.span)
             case K.IDENT:
                 self.advance()
                 if self.at(K.LPAREN):
