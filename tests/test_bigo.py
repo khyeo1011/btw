@@ -426,7 +426,7 @@ def test_w417_overclaim():
 def test_w102_no_annotation():
     [d] = check_bigo(program(f"microservice count(n) {{\n {LOOP}\n}}"))
     assert (d.code, d.severity, d.soft) == ("W102", Severity.WARNING, True)
-    assert d.message == "microservice `count` has no SLA. Inferred: O(n)."
+    assert d.message == "microservice `count` has no SLA. Inferred: O(n). The PM is going to ask, you know."
     assert d.span == Span(Pos(1, 13), Pos(1, 18))
 
 

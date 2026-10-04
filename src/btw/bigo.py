@@ -373,7 +373,7 @@ def verdict(ms: ast.Microservice, cost: Cost, tokens: list[Token] | None = None)
     if d is UNKNOWN:
         found.append(warning("W508", "Complexity: O(?). The halting problem is a skill issue.", ms.name.span))
     elif big_o is None:
-        message = f"microservice `{ms.name.name}` has no SLA. Inferred: {format_complexity(d)}."
+        message = f"microservice `{ms.name.name}` has no SLA. Inferred: {format_complexity(d)}. The PM is going to ask, you know."
         found.append(warning("W102", message, ms.name.span, add_sla(ms, d, tokens)))
     elif k is UNKNOWN:
         pass  # unverifiable: W203 above
