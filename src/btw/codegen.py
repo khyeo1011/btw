@@ -513,9 +513,19 @@ class Codegen:
             self.div_zero_used = True
             self.emit("test", "rcx, rcx")
             self.emit("jz", ".Ldiv_zero", "dividing by zero?")
+            # idiv traps on the minimum / -1, so x / -1 is a wrapping `neg` and x % -1 is 0
+            idiv, done = self.new_label("idiv", "divdone")
+            self.emit("cmp", "rcx, -1")
+            self.emit("jne", idiv)
+            self.emit("neg" if op == "/" else "xor", "rax" if op == "/" else "eax, eax")
+            self.emit("jmp", done)
+            self.label(idiv)
             self.emit("cqo")
             self.emit("idiv", "rcx")
-            self.push("rax" if op == "/" else "rdx", "quotient" if op == "/" else "remainder")
+            if op == "%":
+                self.emit("mov", "rax, rdx")
+            self.label(done)
+            self.push("rax", "quotient" if op == "/" else "remainder")
         elif op in COMPARISONS:
             self.emit("cmp", "rax, rcx")
             self.emit(COMPARISONS[op], "al")

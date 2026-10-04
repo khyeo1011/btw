@@ -41,8 +41,9 @@ Files: `src/btw/interp.py`, `tests/test_interp.py`. Specs: Language Spec 5,
    1,000 fails. Side effects in the arguments of the overflowing call
    happen before the error. The codegen should match by checking in the
    callee's prologue.
-2. **Minimum divided by -1** is "undefined and never tested" (Language Spec
-   10). The interpreter wraps it: `MIN / -1 = MIN` and `MIN % -1 = 0`.
+2. **Minimum divided by -1** wraps: `MIN / -1 = MIN` and `MIN % -1 = 0`.
+   Language Spec 5 and 10 now define it that way, and
+   `p0_div_min_neg1` tests it in both backends.
 3. **The recursion limit.** Implementation Spec 9 says to call
    `sys.setrecursionlimit(50_000)` at startup. `run` raises the limit for
    the run and puts the old value back afterwards. Leaving it raised made
