@@ -1,0 +1,6 @@
+i use arch btw
+npm install seed = curl
+serve localhost:3000 {
+    console.log seed
+}
+:wq

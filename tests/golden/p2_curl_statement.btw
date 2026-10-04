@@ -1,0 +1,10 @@
+i use arch btw
+microservice double(x) O(1) {
+    ship it x * 2
+}
+serve localhost:3000 {
+    curl
+    curl | double | console.log
+    ship it curl
+}
+:wq

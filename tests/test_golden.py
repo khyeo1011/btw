@@ -31,10 +31,18 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("program", programs, ids=[p.stem for p in programs])
 
 
-def btw(*args: str, timeout: float | None = None) -> subprocess.CompletedProcess:
+def btw(
+    *args: str, timeout: float | None = None, stdin: bytes = b""
+) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "btw", *args], capture_output=True, timeout=timeout
+        [sys.executable, "-m", "btw", *args], input=stdin, capture_output=True, timeout=timeout
     )
+
+
+def stdin_for(program: Path) -> bytes:
+    """The `.in` sidecar, or empty stdin, never the runner's own (Implementation Spec 13)."""
+    sidecar = program.with_suffix(".in")
+    return sidecar.read_bytes() if sidecar.exists() else b""
 
 
 def expected(program: Path, suffix: str) -> str:
@@ -96,7 +104,7 @@ def test_golden(program: Path, request, tmp_path: Path):
         return
 
     # 3. The interpreter.
-    result = btw("run", path, timeout=TIMEOUT)
+    result = btw("run", path, timeout=TIMEOUT, stdin=stdin_for(program))
     require_ran(result, "btw run")
     compare_run(program, result, blessing)
 
@@ -113,4 +121,7 @@ def test_golden(program: Path, request, tmp_path: Path):
     if "[E501]: " in stderr:
         pytest.xfail("native: not yet (E501)")
     assert result.returncode == 0, stderr
-    compare_run(program, subprocess.run([binary], capture_output=True, timeout=TIMEOUT), False)
+    native = subprocess.run(
+        [binary], input=stdin_for(program), capture_output=True, timeout=TIMEOUT
+    )
+    compare_run(program, native, False)
