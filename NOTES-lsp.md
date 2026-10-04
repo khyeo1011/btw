@@ -52,8 +52,14 @@ tests/test_hovers.py  hover text, one test per row kind of Language Spec 12
   the cursor that the checker gave a symbol. Declarations and uses show the
   same text. A name the checker couldn't resolve (E404) has no hover.
 - **Variables** (locals and mutable globals) use the "a variable" row with the
-  1-based declaration line. The P2 "3 commits" part isn't done. Booleans say
-  `boolean`, and a name declared from an ErrorExpr says `unknown`.
+  1-based declaration line. Booleans say `boolean`, and a name declared from
+  an ErrorExpr says `unknown`.
+- **Commits (P2)** end the variable row: `· 3 commits` (`· 1 commit`). A hover
+  can't run the program, so, as the project owner decided, it counts the
+  source: 1 for the declaration plus each `git push --force` and `git revert`
+  statement whose target is that symbol, capped at 16, the history length.
+  A push inside a loop counts once. Microservice locals have no history
+  (E405, Language Spec 9.3), so their row has no commit count.
 - **TODO counter** is the file's total TODO count, the same number E429 uses,
   so it can read 7/5.
 - **Microservice names** show the parameters, the SLA and the inferred

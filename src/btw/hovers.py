@@ -11,6 +11,7 @@ from dataclasses import fields
 
 from btw import ast, bigo, driver
 from btw.checker import MAX_TODOS, Symbol, SymbolKind
+from btw.interp import HISTORY_LIMIT
 from btw.span import Pos, Span
 from btw.tokens import Comment, CommentKind, Token, TokenKind as K
 
@@ -152,7 +153,11 @@ def symbol_hover(program: ast.Program, node: ast.Ident | ast.Var, sym: Symbol) -
             )
         case SymbolKind.GLOBAL | SymbolKind.LOCAL:
             line = sym.decl_span.start.line + 1
-            return f"`npm install {sym.name}` · {ty} · declared on line {line}"
+            text = f"`npm install {sym.name}` · {ty} · declared on line {line}"
+            if sym.kind is SymbolKind.LOCAL and sym.owner != "serve":
+                return text  # microservice locals have no history (Language Spec 9.3)
+            n = min(1 + commits(program, sym), HISTORY_LIMIT)
+            return f"{text} · {n} commit{'' if n == 1 else 's'}"
         case SymbolKind.PARAM:
             return f"parameter `{sym.name}` of `{sym.owner}` · {ty}"
         case SymbolKind.MICROSERVICE:
@@ -160,6 +165,17 @@ def symbol_hover(program: ast.Program, node: ast.Ident | ast.Var, sym: Symbol) -
             if ms is None:
                 return f"`microservice {sym.name}`"
             return microservice_hover(program, ms)
+
+
+def commits(node: object, sym: Symbol) -> int:
+    """The `git push --force` and `git revert` statements on `sym` below `node`."""
+    if isinstance(node, list):
+        return sum(commits(child, sym) for child in node)
+    if not isinstance(node, ast.Node):
+        return 0
+    own = isinstance(node, ast.Assign | ast.Revert) and node.name.sym is sym
+    children = (f.name for f in fields(node) if f.name not in ("span", "sym", "ty", "comments"))
+    return own + sum(commits(getattr(node, name), sym) for name in children)
 
 
 def microservice_for(
