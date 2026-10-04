@@ -56,7 +56,7 @@ earns the points.
 | 2  | Native build                   | `btw build demo/fizzbuzz.btw -o fizzbuzz`, `ls -lh`    | "So it's a joke language. Surely it's interpreted?"                                       | Its own x86-64 codegen (no LLVM), System V calls, 16-byte stack alignment, a 160-line C runtime. 17 KB binary.                          |
 | 3  | Same bytes, 1,000× faster      | `diff <(btw run X) <(./X) && echo identical`, `time ./bench` | "14 seconds. 12 milliseconds."                                                      | Differential testing: all 109 golden programs run on both backends and must match stdout, stderr and exit code.                         |
 | 4  | Big O roast                    | `btw check demo/bigo.btw`                              | "You said O(n), but this is O(n²). Skill issue." / "tell the PM it was always the plan" | Degree inference O(n^k log^j n) through calls, call-graph cycle detection for recursion, O(log n) detection for halving loops.          |
-| 5  | The Two Sum challenge          | The playground's Two Sum, claimed as `O(n)`            | "You said O(n), but this is O(n²). Skill issue." on the LeetCode classic                 | No arrays or hash maps in btw, so O(n) can't be written, and the checker sees through the nested loops. The way out: admit O(n²), or `// works on my machine`. |
+| 5  | The Two Sum challenge          | Playground Two Sum tab: pass 6/6, then claim `O(n)`    | "6/6 passed. LGTM, ship it." then "You said O(n), but this is O(n²). Skill issue." and "Errors blocked the run." | No arrays or hash maps in btw, so O(n) can't be written, and the checker sees through the nested loops. The way out: admit O(n²), or `// works on my machine`. |
 | 6  | Quick fix "Exit Vim"           | VS Code: delete `:wq`, then the light bulb             | "Error: program never exited. Classic Vim user."                                          | A real LSP server: diagnostics on every keystroke, hovers, quick fixes, completion, go to definition, semantic tokens, inlay hints.     |
 | 7  | Assembly with jokes            | `btw asm demo/fizzbuzz.btw --annotate`                 | `jz .Lloop1_end  # 404: stop scrolling`                                                   | Readable codegen: each source line above its instructions.                                                                             |
 | 8  | `git blame` on a variable      | `btw run tests/golden/p2_git_blame.btw`                | Hover: "Find out which line made each commit. It was you."                                | Per-variable history (16 commits in a ring buffer), in the interpreter and in native code.                                             |
@@ -152,16 +152,25 @@ you which line made every value. The hover text ends with: 'It was you.'"
 
 ### 1:30 to 2:05 · Act 3, imposter syndrome
 
-**Do:** show the Two Sum solution with its `O(n)` SLA, then run `btw check` on
-it. (Until the Two Sum file is ready, `btw check demo/bigo.btw` gives the same
-roast on `pairs`.)
+**Do:** switch to the playground's **Two Sum** tab. Your nested-loop solution
+is already in it, with no SLA. Press Ctrl+Enter.
 
-**Say:** "Nothing says imposter syndrome like a technical interview. Two Sum.
-Everyone knows the answer is O(n) with a hash map. btw doesn't have hash
-maps. Or arrays. So I claimed O(n) anyway. In btw you write down the Big O of
-every function, and the compiler checks it. *(read)* 'You said O(n), but this
-is O(n²). Skill issue.' *(read the help line)* 'try O(n²), then tell the PM it
-was always the plan.'"
+**Say:** "Nothing says imposter syndrome like a technical interview. So: Two
+Sum. *(tests go green; read)* '6/6 passed. LGTM, ship it.' But in btw you
+write down the Big O of every function, and the compiler checks you. I didn't,
+so: *(read the warning)* 'Inferred: O(n²). The PM is going to ask, you know.'
+Everyone knows the interview answer is O(n) with a hash map. btw doesn't have
+hash maps. Or arrays. So I'll just... claim O(n)."
+
+**Do:** type `O(n)` after `twoSum(n, target)` and press Ctrl+Enter.
+
+**Say:** "*(read)* 'You said O(n), but this is O(n²). Skill issue.' *(read the
+help line)* 'try O(n²), then tell the PM it was always the plan.' And it won't
+even run my tests. *(read)* 'Errors blocked the run.'"
+
+**If the Wi-Fi is bad:** `btw check demo/bigo.btw` in the terminal gives the
+same E417 on `pairs`. Skip the green tests and keep the lines from "In btw
+you write down the Big O".
 
 **Do:** `btw loadtest demo/bigo.btw grid 2>/dev/null`
 
@@ -207,9 +216,9 @@ and I use arch, btw."
 - **Foreign keywords** (in VS Code): type `if (x > 0) {`. "'`if` is a boomer
   conditional. Use `vibe check`.' It knows 22 words from other languages."
 - **The cheat code** (after Act 3): put `// works on my machine` above the
-  dishonest Two Sum. It runs, and leaves one warning behind: '200 OK (on my
-  machine): 1 problem suppressed.' "Hard errors can't be suppressed. Only
-  your conscience."
+  dishonest `twoSum`. 6/6 again, with one warning left behind: '200 OK (on my
+  machine): 1 problem suppressed.' "Interviewers hate this one trick. Hard
+  errors can't be suppressed. Only your conscience."
 - **The playground** (before the close): run the infinite doomscroll example.
   "It runs the real compiler in your browser, and it won't let you doomscroll
   forever."
@@ -245,7 +254,7 @@ can do two things the stage can't: the speed race and close-ups.
 | 0:08–0:20 | Fast montage of roasts scrolling by (`btw check demo/roast.btw`).                                             | "While other teams spent 24 hours building corporate dashboards, I built something about the true essence of software engineering: dependency hell, git panic, and crushing imposter syndrome." | `83 roasts. 148 lines.`                      |
 | 0:20–0:35 | FizzBuzz in VS Code. Each keyword gets a label as it's named.                                                 | "Variables are `npm install`. Assignment is `git push --force`. If is `vibe check`, else is `skill issue`, loops are `doomscroll`, and you get out with `touch grass`." | `npm install` = let, `vibe check` = if, ... |
 | 0:35–0:50 | Delete `:wq`, hover, light bulb, **Exit Vim**. Then type `if`, hover, **Use vibe check**.                     | "It has a real language server, with quick fixes. This one is called Exit Vim."                                                                                    | Zoom on "Classic Vim user."                  |
-| 0:50–1:05 | `btw check` on Two Sum claiming `O(n)` (or `demo/bigo.btw`), then `btw loadtest demo/bigo.btw grid 2>/dev/null`. | "Write down your Big O, and it checks you. Even on Two Sum. Then, because it has imposter syndrome too, it load-tests itself, and snitches when its own checker was wrong." | "Skill issue." then "The PM has been notified." |
+| 0:50–1:05 | Playground Two Sum tab: 6/6 green, type `O(n)`, Ctrl+Enter, E417 and "Errors blocked the run." Then `btw loadtest demo/bigo.btw grid 2>/dev/null`. | "Write down your Big O, and it checks you. Even on Two Sum. Then, because it has imposter syndrome too, it load-tests itself, and snitches when its own checker was wrong." | "Skill issue." then "The PM has been notified." |
 | 1:05–1:12 | Black screen, white text.                                                                                     | "But is it even a real language?"                                                                                                                                 | *is it even real?*                           |
 | 1:12–1:35 | Split screen. Left: `time btw run demo/bench.btw`. Right: `btw build` then `time ./bench`. The right side finishes at once; speed up the left side with a running clock. | "It compiles to x86-64. No LLVM: it writes the assembly itself. The interpreter takes 14 seconds. The binary takes 12 milliseconds."                             | `1,000× faster`                              |
 | 1:35–1:45 | `diff <(btw run demo/fizzbuzz.btw) <(./fizzbuzz) && echo identical`, then zoom into `fizzbuzz.s` on `# 404: stop scrolling`. | "Same bytes, every time. Even the assembly has jokes."                                                                                                             | `0 bytes different`                          |
@@ -304,18 +313,19 @@ uv run pytest -q                          # the "1556 passed" shot
   9950X3D desktop; a cloud VM took 52 s. If it's over 20 s, never run it
   live: quote the number, run only the binary, and save the race for the
   video.
-- **The playground needs the internet** (Pyodide loads from a CDN). Open it
-  before you start, and don't depend on it in the first 2:45. Everything else
-  works offline.
+- **The playground needs the internet** (Pyodide loads from a CDN), and
+  Act 3 runs in it. Before you start, open the Two Sum tab, paste your
+  nested-loop solution without an SLA, and run the tests once so Pyodide is
+  loaded and they're green. Don't reload it. If the Wi-Fi is bad, use the
+  offline line in Act 3. Everything else works offline.
 - **VS Code has to find `btw-lsp`.** Launch with `uv run code editors/vscode`,
   press F5, open `demo/fizzbuzz.btw` in the new window, and check that a
   squiggle appears before you walk up.
-- **Two Sum, checked against the real compiler:** with the array as a
-  lookup microservice (`nums(i)` returning one element per `vibe check`) and
-  two nested `doomscroll`s, an `O(n)` SLA gets E417 and `btw run` refuses it;
-  `O(n^2)` runs in both backends; `// works on my machine` above the
-  microservice gives W200 and runs. A `curl` version can't work: there's
-  nowhere to keep the numbers it reads.
+- **Two Sum, checked against the tab's own test harness** (all six tests,
+  with a nested-loop `twoSum`): no SLA gives W102 "Inferred: O(n²)" and 6/6;
+  `O(n)` gives E417 and "Errors blocked the run."; `O(n^2)` gives 6/6 and
+  "LGTM, ship it."; `// works on my machine` above an `O(n)` `twoSum` gives
+  W200 and 6/6. The empty starter gives W102 "Inferred: O(1)" and 0/6.
 - **Have the video ready** as a fallback if the laptop, the projector or the
   Wi-Fi fails.
 
