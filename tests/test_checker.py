@@ -496,3 +496,12 @@ def test_curl_in_a_global_initializer():
 
 def test_curl_statement_does_something():
     assert codes(wrap("    curl")) == []
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    ["vibe check x === 1 { }", "vibe check x @ 1 { }", "doomscroll x === 1 { }", "vibe check x 1 { }"],
+)
+def test_condition_cut_short_by_an_error_gets_one_squiggle(stmt):
+    src = wrap(f"npm install x = 1\n{stmt}")
+    assert [d.code for d in driver.check(src, "t.btw")[2]] == ["E400"]
