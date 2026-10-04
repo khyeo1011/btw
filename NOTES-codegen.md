@@ -124,8 +124,6 @@ The only E501 left is more than 64 tracked variables (decision 9).
 
 ## Open items
 
-- **Minimum divided by -1** traps (SIGFPE) natively while the interpreter
-  wraps. Documented as undefined (Language Spec 10).
 - **Deep recursion and the real stack.** 1,000 frames is far below the 8 MB
   default stack, so the counter always fires first. Not tested with a
   lowered `ulimit -s`.

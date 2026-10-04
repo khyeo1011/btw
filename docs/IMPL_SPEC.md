@@ -284,7 +284,7 @@ Every expression leaves exactly one 8-byte value pushed. At every statement boun
 | Local or parameter         | `push qword ptr [rbp - OFF]`                                                                                                                                                                                                     |
 | Global or constant         | `push qword ptr [rip + btw_g_NAME]`                                                                                                                                                                                              |
 | `a + b`, `a - b`, `a * b`  | Evaluate a, evaluate b, `pop rcx`, `pop rax`, then `add rax, rcx`, `sub rax, rcx` or `imul rax, rcx`, then `push rax`                                                                                                            |
-| `a / b`, `a % b`           | Evaluate a and b, `pop rcx`, `pop rax`, `test rcx, rcx`, `jz` to the division-by-zero handler, `cqo`, `idiv rcx`, then `push rax` (quotient) or `push rdx` (remainder)                                                           |
+| `a / b`, `a % b`           | Evaluate a and b, `pop rcx`, `pop rax`, `test rcx, rcx`, `jz` to the zero handler, `cmp rcx, -1`: if equal `neg rax` (`/`) or `xor eax, eax` (`%`), else `cqo`, `idiv rcx` (`%` adds `mov rax, rdx`), then `push rax`            |
 | Comparisons                | `pop rcx`, `pop rax`, `cmp rax, rcx`, then `setl`, `setle`, `setg`, `setge`, `sete` or `setne` into `al`, `movzx eax, al`, `push rax`                                                                                            |
 | `-a`                       | `pop rax`, `neg rax`, `push rax`                                                                                                                                                                                                 |
 | `!a`                       | `pop rax`, `xor rax, 1`, `push rax`                                                                                                                                                                                              |
@@ -332,7 +332,7 @@ Up to 64 tracked variables, with ids assigned by the codegen. More than that is 
 ## 10.8 Gotchas
 
 - `push` only takes a 32-bit sign-extended immediate. Load big numbers with `mov rax, IMM` (GNU as picks the 64-bit form) and push `rax`.
-- `idiv` needs `cqo` first, and dividing by zero raises SIGFPE, hence the explicit check. The minimum number divided by -1 also traps: documented as undefined, never tested.
+- `idiv` needs `cqo` first, and dividing by zero raises SIGFPE, hence the explicit check. The minimum number divided by -1 also traps, so a divisor of -1 skips `idiv`: `x / -1` is `neg` (which wraps the minimum to itself) and `x % -1` is 0 (Language Spec 10).
 - `setcc` writes a single byte, so always `movzx eax, al` afterwards.
 - Memory operands without a register to imply a size need `qword ptr`, as in `push qword ptr [rbp - 8]` and `inc qword ptr [rip + btw_depth]`.
 - All data access is RIP-relative (`[rip + label]`, `lea rdi, [rip + .Lstr0]`). gcc links position-independent executables by default, and absolute addresses won't link.

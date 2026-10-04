@@ -215,8 +215,8 @@ The parser reports E408 itself, because only it knows the last token: when the f
 | Expression                                                   | Operands                      | Result  | Notes                                                                                                                 |
 | ------------------------------------------------------------ | ----------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
 | `a + b`, `a - b`, `a * b`                                    | number, number                | number  | Wraps on overflow                                                                                                     |
-| `a / b`                                                      | number, number                | number  | Truncates toward zero. Dividing by zero is a runtime error.                                                           |
-| `a % b`                                                      | number, number                | number  | Takes the sign of `a`. Modulo by zero is a runtime error.                                                             |
+| `a / b`                                                      | number, number                | number  | Truncates toward zero. Dividing by zero is a runtime error. The minimum divided by -1 wraps to itself.                |
+| `a % b`                                                      | number, number                | number  | Takes the sign of `a`. Modulo by zero is a runtime error. The minimum modulo -1 is 0.                                 |
 | `-a`                                                         | number                        | number  | Negating the minimum value wraps to itself                                                                            |
 | `a == b`, `a != b`                                           | both numbers or both booleans | boolean | Mixing types is E418                                                                                                  |
 | Comparisons (less, less-or-equal, greater, greater-or-equal) | number, number                | boolean | Can't be chained                                                                                                      |
@@ -400,7 +400,7 @@ git log x                  prints:
 | More than 1,000 nested microservice calls  | `Stack overflow. Please search stackoverflow.com.`                             | 1         |
 | `git revert` on a variable with one commit | `fatal: bad revision 'x~1'`                                                    | 128       |
 
-Undefined and never tested: the minimum number divided by -1 (x86 traps; the interpreter would wrap).
+The minimum number divided by -1 wraps like any other overflow: `/` gives the minimum and `%` gives 0, in both backends. x86 `idiv` traps on it, so the native code tests for a divisor of -1 first.
 
 # 11. Diagnostics catalog
 
