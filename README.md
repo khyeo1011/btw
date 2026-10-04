@@ -153,15 +153,16 @@ uv run btw lsp                                  # language server (also btw-lsp)
 
 ### From a release
 
-Each [GitHub release](https://github.com/khyeo1011/btw/releases) has a wheel
-that installs the `btw` and `btw-lsp` commands, C runtime included:
+Each [GitHub release](https://github.com/khyeo1011/btw/releases) has two
+standalone ELF executables for Linux x86-64, `btw` and `btw-lsp`. They need no
+Python; the C runtime is built in:
 
 ```
-uv tool install ./btw-0.1.0-py3-none-any.whl    # or: pipx install ...
+chmod +x btw btw-lsp && mv btw btw-lsp ~/.local/bin/
 btw run hello.btw
 ```
 
-`btw build` still needs gcc on Linux x86-64. `RELEASING.md` describes how
+`btw build` still needs gcc. `RELEASING.md` describes how
 releases are made, and `CHANGELOG.md` what each one changed.
 
 ## Editor setup

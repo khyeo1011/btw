@@ -62,6 +62,13 @@ jobs:
       - name: Check distributions
         run: scripts/check-dist.sh dist
 
+      # The release assets: standalone ELF executables for Linux x86-64.
+      - name: Build executables
+        run: scripts/build-exe.sh exe
+
+      - name: Check executables
+        run: scripts/check-exe.sh exe
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,7 +80,7 @@ jobs:
             $0 ~ "^## \\[" { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
             found
           ' CHANGELOG.md > notes.md
-          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+          gh release create "$TAG" exe/btw exe/btw-lsp --repo "$GITHUB_REPOSITORY" \
             --title "btw $VERSION" --notes-file notes.md --verify-tag
 
       # Off until the repository variable PUBLISH_TO_PYPI is "true" and a

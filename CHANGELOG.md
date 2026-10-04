@@ -23,6 +23,8 @@ The first release.
   actions, semantic tokens and inlay hints.
 - Editor support for VS Code and Neovim in `editors/`.
 - Debug dumps: `btw tokens` and `btw parse`.
+- Release assets: standalone `btw` and `btw-lsp` ELF executables for Linux
+  x86-64 that need no Python.
 
 [Unreleased]: https://github.com/khyeo1011/btw/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/khyeo1011/btw/releases/tag/v0.1.0
