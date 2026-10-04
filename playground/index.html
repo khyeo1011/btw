@@ -6,6 +6,8 @@
 <title>btw playground</title>
 <link rel="icon" href="data:,">
 <meta name="description" content="Write btw in your browser: the real checker and interpreter, running on Pyodide.">
+<!-- scripts/build-playground.sh replaces "dev" with a hash of the build. -->
+<meta name="btw-build" content="dev">
 <style>
   :root {
     color-scheme: light dark;
@@ -178,6 +180,10 @@
 
 <script>
   const TIMEOUT_MS = 5000;
+  // Every file the page loads carries the build in its URL. GitHub Pages lets
+  // browsers cache files for 10 minutes, and a reload refetches only this
+  // page, so without it a new page could run on the last deploy's wheel.
+  const BUILD = document.querySelector('meta[name="btw-build"]').content;
   const runButton = document.getElementById("run");
   const status = document.getElementById("status");
   const source = document.getElementById("source");
@@ -194,7 +200,7 @@
   function startWorker() {
     ready = false;
     runButton.disabled = true;
-    worker = new Worker("worker.js", { type: "module" });
+    worker = new Worker(`worker.js?v=${BUILD}`, { type: "module" });
     worker.onmessage = ({ data }) => {
       if (data.type === "ready") {
         ready = true;
@@ -292,7 +298,7 @@
   }
 
   async function fetchExample(file) {
-    const response = await fetch(`examples/${file}`);
+    const response = await fetch(`examples/${file}?v=${BUILD}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.text();
   }

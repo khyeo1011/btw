@@ -20,6 +20,14 @@ All notable changes to btw are recorded here. The format follows
 - The playground has a `git blame` example.
 - Golden tests can have a `.in` file for stdin.
 
+### Fixed
+
+- The playground could run a new page on the previous deploy's wheel for up
+  to 10 minutes after a deploy, because GitHub Pages lets browsers cache files
+  that long and a reload only refetches the page. With the curl release that
+  made every `curl` an E404. Every file the page loads now carries a hash of
+  the build in its URL.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added
