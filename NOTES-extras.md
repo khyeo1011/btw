@@ -89,7 +89,7 @@ Files: `src/btw/lexer.py`, `src/btw/parser.py`, `tests/test_lexer.py`,
 | `007`                  | lexer  | already done (NOTES-lexer decision 2)                     |
 | chained comparison     | parser | already done (NOTES-parser decision 3)                    |
 | `serve localhost:8080` | parser | new: E409 on the `localhost:8080` token                   |
-| CLI summary line       | CLI    | not done: belongs to `cli.py`, outside this item's scope  |
+| CLI summary line       | CLI    | done later, see "CLI summary line" below                  |
 
 - The three roast tokens are tried before the operators, so `===` is one
   token rather than `==` then `=`. None of `===`, `++` or `;` can start a
@@ -97,6 +97,21 @@ Files: `src/btw/lexer.py`, `src/btw/parser.py`, `tests/test_lexer.py`,
   meaning. Being ERROR tokens, the parser counts them as the statement's
   E400 and doesn't report again (NOTES-lexer "Token details").
 - `test_other_port_is_accepted` now uses port 5000, since 8080 is roasted.
+
+### CLI summary line
+
+Files: `src/btw/printing.py` (`format_summary`), `src/btw/cli.py`,
+`tests/test_printing.py`. Decided with the project owner:
+
+- `btw check`, `btw run` and `btw build` print it after the diagnostics, on
+  the same stream, in pretty mode only (the goldens use `--format short`, so
+  they never see it). `tokens`, `parse` and `asm` don't.
+- Only when there is at least one diagnostic left after suppression. Soft
+  errors count as errors.
+- `build failed: 1 error. Skill issue.` leaves out the warning part when there
+  are no warnings, and nouns are singular for 1.
+- `btw run` reports diagnostics only when they block the run, so a run with
+  warnings alone prints neither the warnings nor the summary.
 
 ### Questions
 
@@ -139,8 +154,6 @@ Works:
 
 Doesn't work, or not done:
 
-- The CLI summary-line roast (Language Spec 13, last row): it lives in
-  `cli.py`, outside this card's lexer and parser scope.
 - Hovering the head of a pipe shows nothing (see "For other cards" under
   pipes; the fix belongs in `hovers.py`).
 - Open questions above: other ports, the `++` variable name, the W204

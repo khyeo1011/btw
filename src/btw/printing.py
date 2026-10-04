@@ -25,6 +25,22 @@ def format_short(diagnostic: Diagnostic, path: str) -> str:
     )
 
 
+def count(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def format_summary(diagnostics: list[Diagnostic]) -> str | None:
+    """The pretty-mode summary line (Language Spec 13); soft errors count as errors."""
+    errors = sum(d.severity is Severity.ERROR for d in diagnostics)
+    warnings = len(diagnostics) - errors
+    if errors:
+        parts = [count(errors, "error")] + ([count(warnings, "warning")] if warnings else [])
+        return f"build failed: {', '.join(parts)}. Skill issue."
+    if warnings:
+        return f"{count(warnings, 'warning')}. LGTM anyway."
+    return None
+
+
 def format_pretty(diagnostic: Diagnostic, path: str, source: str, color: bool) -> str:
     """Render one diagnostic as the block described in NOTES-harness.md.
 
@@ -85,6 +101,7 @@ def print_diagnostics(
     source: str,
     stream: TextIO,
     fmt: str,
+    summary: bool = False,
 ) -> None:
     if fmt == "short":
         for diagnostic in diagnostics:
@@ -92,5 +109,7 @@ def print_diagnostics(
         return
     color = use_color()
     blocks = [format_pretty(d, path, source, color) for d in diagnostics]
+    if summary and (line := format_summary(diagnostics)):
+        blocks.append(line)
     if blocks:
         print("\n\n".join(blocks), file=stream)
