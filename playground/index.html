@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btw playground</title>
+<meta name="description" content="Write btw in your browser: the real checker and interpreter, running on Pyodide.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f3;
+    --panel: #ffffff;
+    --text: #1c1c1a;
+    --muted: #6a6a64;
+    --border: #d9d9d2;
+    --accent: #1f6feb;
+    --accent-text: #ffffff;
+    --error: #c62828;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121211;
+      --panel: #1b1b1a;
+      --text: #e8e8e3;
+      --muted: #9a9a92;
+      --border: #33332f;
+      --accent: #4c8dff;
+      --accent-text: #0b0b0a;
+      --error: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+  }
+  header { margin-bottom: 16px; }
+  h1 { margin: 0; font: 700 28px/1.2 var(--mono); }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  a { color: var(--accent); }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  button {
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #run {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  #status { color: var(--muted); font-size: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    textarea { min-height: 280px; }
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane h2 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .pane h2 label, .pane h2 .note { text-transform: none; letter-spacing: 0; }
+  textarea, pre {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font: 14px/1.5 var(--mono);
+    tab-size: 4;
+  }
+  textarea {
+    width: 100%;
+    min-height: 420px;
+    resize: vertical;
+    white-space: pre;
+  }
+  pre {
+    overflow-x: auto;
+    white-space: pre;
+    min-height: 3em;
+  }
+  .results { display: flex; flex-direction: column; gap: 16px; }
+  .stderr { color: var(--error); }
+  .note { color: var(--muted); }
+  kbd {
+    font: 12px var(--mono);
+    padding: 1px 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>i use arch btw</h1>
+    <p>The <a href="https://github.com/khyeo1011/btw">btw</a> checker and interpreter, running in your browser on Pyodide. Nothing to install.</p>
+  </header>
+
+  <div class="toolbar" id="examples" aria-label="Examples">
+    <button data-example="p0_fizzbuzz">FizzBuzz</button>
+    <button data-example="p0_e417_big_o_underclaim">Big O roast</button>
+    <button data-example="p2_git_history">git history</button>
+    <button data-example="p1_w509_infinite_doomscroll">Doomscroll</button>
+    <button data-example="p2_e400_foreign_print"><code>print</code></button>
+  </div>
+
+  <div class="toolbar">
+    <button id="run" disabled>Run</button>
+    <span id="status">Installing node_modules… (the first load downloads about 6 MB)</span>
+  </div>
+
+  <div class="grid">
+    <section class="pane">
+      <h2><label for="source">playground.btw</label> <span class="note">· <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs</span></h2>
+      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    </section>
+    <div class="results">
+      <section class="pane">
+        <h2>Output</h2>
+        <pre id="output"></pre>
+      </section>
+      <section class="pane">
+        <h2>Diagnostics</h2>
+        <pre id="diagnostics"></pre>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+  const TIMEOUT_MS = 5000;
+  const runButton = document.getElementById("run");
+  const status = document.getElementById("status");
+  const source = document.getElementById("source");
+  const output = document.getElementById("output");
+  const diagnostics = document.getElementById("diagnostics");
+
+  let worker = null;
+  let ready = false;
+  let queued = false; // a run asked for before the worker was ready
+  let pending = null; // { id, timer, started }
+  let nextId = 0;
+
+  function startWorker() {
+    ready = false;
+    runButton.disabled = true;
+    worker = new Worker("worker.js", { type: "module" });
+    worker.onmessage = ({ data }) => {
+      if (data.type === "ready") {
+        ready = true;
+        runButton.disabled = false;
+        status.textContent = "Ready.";
+        if (queued) {
+          queued = false;
+          run();
+        }
+      } else if (data.type === "failed") {
+        status.textContent = `The playground failed to load: ${data.error}`;
+      } else if (data.type === "diagnostics" && pending && data.id === pending.id) {
+        diagnostics.textContent = data.text || "No diagnostics.";
+      } else if (data.type === "result" && pending && data.id === pending.id) {
+        clearTimeout(pending.timer);
+        const ms = Math.round(performance.now() - pending.started);
+        pending = null;
+        runButton.disabled = false;
+        show(data, ms);
+      }
+    };
+    worker.onerror = (event) => {
+      status.textContent = `The playground crashed: ${event.message}`;
+    };
+  }
+
+  // Python on the worker can't be interrupted, and a crash can leave it in a
+  // bad state, so both get a fresh worker.
+  function restart(message) {
+    worker.terminate();
+    output.replaceChildren(line(message, "stderr"));
+    status.textContent = "Restarting the interpreter…";
+    startWorker();
+  }
+
+  function line(text, className) {
+    const span = document.createElement("span");
+    span.textContent = text;
+    if (className) span.className = className;
+    return span;
+  }
+
+  function show(result, ms) {
+    output.replaceChildren();
+    if (result.crash) {
+      // btw allows 1,000 nested calls, and the browser's stack is smaller
+      // than a native one, so deep recursion can overflow it first.
+      restart(
+        /Maximum call stack size/.test(result.crash)
+          ? "The browser ran out of stack space before btw's 1,000-call limit. `btw run` shows the real error."
+          : `The interpreter crashed: ${result.crash}`,
+      );
+      return;
+    }
+    if (result.stdout) output.append(line(result.stdout));
+    if (result.stderr) output.append(line(result.stderr, "stderr"));
+    if (result.exit === null) {
+      output.append(line("Errors blocked the run.", "note"));
+    } else {
+      if (result.stdout || result.stderr) output.append("\n");
+      output.append(line(`exit code ${result.exit}`, "note"));
+    }
+    status.textContent = `Done in ${ms} ms.`;
+  }
+
+  function run() {
+    if (!ready) {
+      queued = true;
+      return;
+    }
+    if (pending) return;
+    const id = nextId++;
+    runButton.disabled = true;
+    status.textContent = "Running…";
+    output.replaceChildren();
+    diagnostics.textContent = "";
+    pending = {
+      id,
+      started: performance.now(),
+      timer: setTimeout(() => {
+        pending = null;
+        restart(`Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
+      }, TIMEOUT_MS),
+    };
+    worker.postMessage({ id, source: source.value });
+  }
+
+  async function loadExample(name) {
+    const response = await fetch(`examples/${name}.btw`);
+    if (!response.ok) {
+      status.textContent = `Couldn't load the example: HTTP ${response.status}`;
+      return;
+    }
+    source.value = await response.text();
+    output.replaceChildren();
+    diagnostics.textContent = "";
+    run();
+  }
+
+  document.getElementById("examples").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-example]");
+    if (button) loadExample(button.dataset.example);
+  });
+  runButton.addEventListener("click", run);
+  source.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      run();
+    } else if (event.key === "Tab" && !event.shiftKey) {
+      event.preventDefault();
+      source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end");
+    }
+  });
+
+  startWorker();
+  loadExample("p0_fizzbuzz");
+</script>
+</body>
+</html>
