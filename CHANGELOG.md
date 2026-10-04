@@ -6,6 +6,16 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Playground links: `#two-sum` opens the Two Sum tab, and Share puts the
+  tab's code (and the playground's stdin) in the URL, compressed with the
+  browser's `CompressionStream`.
+- The playground keeps each tab's code across reloads, in localStorage. A
+  share link wins over the saved draft.
+- After 6/6, the Two Sum tests give a verdict with twoSum's inferred
+  runtime: "Accepted. Runtime: O(n²). Beats 0% of hash maps."
+
 ## [0.3.0] - 2026-10-04
 
 ### Added
