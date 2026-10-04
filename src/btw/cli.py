@@ -2,6 +2,7 @@
 
 import argparse
 import dataclasses
+import os
 import sys
 import traceback
 from enum import Enum
@@ -51,7 +52,15 @@ def main(argv: list[str] | None = None) -> int:
             driver.lsp()
             return 0
         source = read_source(args.file)
-        return COMMANDS[args.command](args, source)
+        exit_code = COMMANDS[args.command](args, source)
+        sys.stdout.flush()  # so a closed pipe fails here, not at interpreter exit
+        return exit_code
+    except BrokenPipeError:
+        # The reader went away (`btw run x.btw | head`). Exit quietly like a native
+        # binary killed by SIGPIPE, and point stdout at /dev/null so Python's final
+        # flush of what's still buffered doesn't fail again.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 141  # 128 + SIGPIPE
     except NotImplementedError as error:
         print(f"btw: {error}", file=sys.stderr)
         return 2
