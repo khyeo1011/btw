@@ -30,7 +30,7 @@ from btw.tokens import TokenKind as K
 
 log = logging.getLogger("btw.lsp")
 
-server = LanguageServer("btw-lsp", "0.3.0", text_document_sync_kind=types.TextDocumentSyncKind.Full)
+server = LanguageServer("btw-lsp", "0.4.0", text_document_sync_kind=types.TextDocumentSyncKind.Full)
 
 SEVERITY = {
     Severity.ERROR: types.DiagnosticSeverity.Error,
