@@ -85,12 +85,24 @@ PREFIX_LEVEL = 8
 # in a roast stands for the word as written, in backticks.
 FOREIGN_ROASTS = [
     (("if",), "vibe check", "`if` is a boomer conditional. Use `vibe check`."),
-    (("else",), "skill issue", "`else`? That's a `skill issue`. Literally, type `skill issue`."),
-    (("while", "for"), "doomscroll", "Nobody uses WORD anymore. Use `doomscroll`, like it's 2am."),
+    (
+        ("else",),
+        "skill issue",
+        "`else`? That's a `skill issue`. Literally, type `skill issue`.",
+    ),
+    (
+        ("while", "for"),
+        "doomscroll",
+        "Nobody uses WORD anymore. Use `doomscroll`, like it's 2am.",
+    ),
     (("break",), "touch grass", "Don't `break`. Go `touch grass`."),
     (("return",), "ship it", "No returns, only deploys. Use `ship it`."),
     (("let", "var"), "npm install", "WORD? Real variables come from `npm install`."),
-    (("const",), "npm install -g", "`const` is just a global install. Use `npm install -g`."),
+    (
+        ("const",),
+        "npm install -g",
+        "`const` is just a global install. Use `npm install -g`.",
+    ),
     (
         ("function", "def", "fn", "func"),
         "microservice",
@@ -119,9 +131,7 @@ E408 = "Error: program never exited. Classic Vim user."
 W208 = "208 Already Reported: we know you use Arch."
 UNCLOSED_PAREN_JOKE = "Even Lisp programmers close their parentheses."
 E500 = "It works on my machine. Unfortunately, this is not my machine."
-SPRING_BOOT = (
-    "Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000."
-)
+SPRING_BOOT = "Error: port 8080 is already in use by a Spring Boot app you forgot about. Use 3000."
 VOID_PIPE = "`console.log` returns nothing. It's void, like my weekend plans."
 
 
@@ -209,7 +219,9 @@ class _Parser:
         if span.start in self.reported:
             return
         self.reported.add(span.start)
-        self.diags.append(Diagnostic("E400", Severity.ERROR, message, span, fixes=fixes or []))
+        self.diags.append(
+            Diagnostic("E400", Severity.ERROR, message, span, fixes=fixes or [])
+        )
 
     def unexpected(self, expected: str) -> None:
         tok = self.peek()
@@ -284,7 +296,9 @@ class _Parser:
         """Consume an arch line. Every one after the first is W208 (Language Spec 4)."""
         tok = self.advance()
         if self.seen_arch:
-            self.diags.append(Diagnostic("W208", Severity.WARNING, W208, tok.span, soft=True))
+            self.diags.append(
+                Diagnostic("W208", Severity.WARNING, W208, tok.span, soft=True)
+            )
         self.seen_arch = True
 
     def unclosed_paren(self) -> None:
@@ -304,9 +318,13 @@ class _Parser:
         if depth == 0:
             return
         end = self.peek()
-        message = f"Syntax error: expected `)`, found {found(end)}. {UNCLOSED_PAREN_JOKE}"
+        message = (
+            f"Syntax error: expected `)`, found {found(end)}. {UNCLOSED_PAREN_JOKE}"
+        )
         self.diags = [
-            d for d in self.diags if not (d.code == "E400" and d.span.start == end.span.start)
+            d
+            for d in self.diags
+            if not (d.code == "E400" and d.span.start == end.span.start)
         ]
         self.diags.append(Diagnostic("E400", Severity.ERROR, message, end.span))
         self.reported.add(end.span.start)
@@ -348,7 +366,9 @@ class _Parser:
         else:
             text = ":wq\n" if end.span.start.col == 0 else "\n:wq\n"
         fix = Fix("Exit Vim", [Edit(at, text)])
-        self.diags.append(Diagnostic("E408", Severity.ERROR, E408, last.span, fixes=[fix]))
+        self.diags.append(
+            Diagnostic("E408", Severity.ERROR, E408, last.span, fixes=[fix])
+        )
 
     def item(self) -> ast.Item | None:
         saved, self.errored = self.errored, False
@@ -381,7 +401,10 @@ class _Parser:
     def sync_top(self) -> None:
         """Skip to the next line that starts with an item keyword, or to `:wq`."""
         while not self.at(K.EOF, K.WQ):
-            if self.peek().kind in ITEM_START and self.line_start():
+            tok = self.peek()
+            if tok.kind in ITEM_START and (
+                self.line_start() or tok.kind in (K.MICROSERVICE, K.SERVE)
+            ):
                 return
             self.advance()
 
@@ -405,7 +428,9 @@ class _Parser:
         if tok.kind is K.IDENT and tok.text == "O" and self.peek(1).kind is K.LPAREN:
             big_o = self.big_o()
         body = self.expect_block()
-        return ast.Microservice(name, params, big_o, body, span=self.span_from(kw.span.start))
+        return ast.Microservice(
+            name, params, big_o, body, span=self.span_from(kw.span.start)
+        )
 
     def params(self) -> list[ast.Ident]:
         params: list[ast.Ident] = []
@@ -460,7 +485,9 @@ class _Parser:
             tok = self.advance()
             port = tok.value if isinstance(tok.value, int) else 3000
             if port == 8080:  # the Language Spec 13 roast; other ports are accepted
-                self.diags.append(Diagnostic("E409", Severity.ERROR, SPRING_BOOT, tok.span))
+                self.diags.append(
+                    Diagnostic("E409", Severity.ERROR, SPRING_BOOT, tok.span)
+                )
         else:
             self.unexpected("`localhost:3000`")
         body = self.expect_block()
@@ -476,7 +503,9 @@ class _Parser:
             while self.toks[j].kind is K.NEWLINE:
                 j += 1
             if self.toks[j].kind is K.LBRACE and j > self.i:
-                self.i = j  # `{` on the next line: report it, then parse the block anyway
+                self.i = (
+                    j  # `{` on the next line: report it, then parse the block anyway
+                )
             else:
                 self.skip_until(K.LBRACE, K.NEWLINE, K.RBRACE)
             if not self.at(K.LBRACE):
@@ -551,7 +580,11 @@ class _Parser:
             case K.GIT_LOG:
                 self.advance()
                 target = self.target()
-                return None if target is None else ast.Log(target, span=self.span_from(start))
+                return (
+                    None
+                    if target is None
+                    else ast.Log(target, span=self.span_from(start))
+                )
             case K.VIBE_CHECK:
                 return self.if_stmt()
             case K.DOOMSCROLL:
@@ -673,7 +706,9 @@ class _Parser:
 
     def void_check(self, expr: ast.Expr) -> ast.Expr:
         if isinstance(expr, _PipePrint):
-            self.diags.append(Diagnostic("E405", Severity.ERROR, VOID_PIPE, expr.keyword))
+            self.diags.append(
+                Diagnostic("E405", Severity.ERROR, VOID_PIPE, expr.keyword)
+            )
             return ast.ErrorExpr(span=expr.span)
         return expr
 
@@ -762,7 +797,9 @@ class _Parser:
                         value = ast.Call(callee, [value], span=tok.span)
                 case K.CONSOLE_LOG:
                     self.advance()
-                    value = _PipePrint(span=self.span_from(start), value=value, keyword=tok.span)
+                    value = _PipePrint(
+                        span=self.span_from(start), value=value, keyword=tok.span
+                    )
                 case _:
                     self.unexpected("a name")
                     return ast.ErrorExpr(span=self.span_from(start))
@@ -864,7 +901,9 @@ def _scalar(value: object) -> str:
 def _dump(node: object, label: str, indent: int, lines: list[str]) -> None:
     pad = "  " * indent + (f"{label}: " if label else "")
     if isinstance(node, Comment):
-        lines.append(f"{pad}Comment {format_span(node.span)} {node.kind.name} {node.text!r}")
+        lines.append(
+            f"{pad}Comment {format_span(node.span)} {node.kind.name} {node.text!r}"
+        )
         return
     if not isinstance(node, ast.Node):
         lines.append(f"{pad}{_scalar(node)}")
