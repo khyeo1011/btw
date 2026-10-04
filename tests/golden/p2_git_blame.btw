@@ -1,0 +1,10 @@
+i use arch btw
+serve localhost:3000 {
+    npm install x = 1
+    git push --force x = 2
+    git push --force x = 3
+    git revert x
+    git revert x
+    git blame x
+}
+:wq
