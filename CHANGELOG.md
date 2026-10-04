@@ -14,6 +14,9 @@ All notable changes to btw are recorded here. The format follows
   code 8. In a global initializer it's E405: postinstall scripts can't make
   network calls. `curl` is now a reserved word.
 - The playground has a stdin box and a `curl` example.
+- The playground has a Two Sum tab: write `twoSum(n, target)` and run it
+  against six fixed tests. btw has no arrays, so each test's array is a
+  generated microservice, `nums(i)`.
 - Golden tests can have a `.in` file for stdin.
 
 ### Fixed

@@ -19,6 +19,7 @@
     --accent: #1f6feb;
     --accent-text: #ffffff;
     --error: #c62828;
+    --pass: #1a7f37;
     --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
@@ -31,6 +32,7 @@
       --accent: #4c8dff;
       --accent-text: #0b0b0a;
       --error: #ff6b6b;
+      --pass: #3fb950;
     }
   }
   * { box-sizing: border-box; }
@@ -68,13 +70,36 @@
   }
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
-  #run {
+  #run, #test {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-text);
     font-weight: 600;
   }
-  #status { color: var(--muted); font-size: 14px; }
+  #status { color: var(--muted); font-size: 14px; margin-left: auto; }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  [role="tab"] {
+    margin-bottom: -1px;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    color: var(--muted);
+  }
+  [role="tab"][aria-selected="true"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .problem p { margin: 0 0 8px; }
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -83,7 +108,7 @@
   @media (max-width: 800px) {
     .grid { grid-template-columns: minmax(0, 1fr); }
     textarea { min-height: 280px; }
-    #diagnostics { white-space: pre-wrap; }
+    #diagnostics, #test-diagnostics { white-space: pre-wrap; }
   }
   .pane {
     display: flex;
@@ -123,6 +148,7 @@
   .results, .inputs { display: flex; flex-direction: column; gap: 16px; }
   #stdin { min-height: 4.5em; }
   .stderr { color: var(--error); }
+  .pass { color: var(--pass); }
   .note { color: var(--muted); }
   kbd {
     font: 12px var(--mono);
@@ -139,6 +165,13 @@
     <p>The <a href="https://github.com/khyeo1011/btw">btw</a> checker and interpreter, running in your browser on Pyodide. Nothing to install.</p>
   </header>
 
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" aria-controls="playground">Playground</button>
+    <button role="tab" aria-selected="false" aria-controls="two-sum">Two Sum</button>
+    <span id="status">Installing node_modules… (the first load downloads about 6 MB)</span>
+  </div>
+
+  <div id="playground" role="tabpanel">
   <div class="toolbar" id="examples" aria-label="Examples">
     <button data-example="p0_fizzbuzz">FizzBuzz</button>
     <button data-example="p0_e417_big_o_underclaim">Big O roast</button>
@@ -150,7 +183,6 @@
 
   <div class="toolbar">
     <button id="run" disabled>Run</button>
-    <span id="status">Installing node_modules… (the first load downloads about 6 MB)</span>
   </div>
 
   <div class="grid">
@@ -175,6 +207,42 @@
       </section>
     </div>
   </div>
+  </div>
+
+  <div id="two-sum" role="tabpanel" hidden>
+  <div class="toolbar">
+    <button id="test" disabled>Run tests</button>
+  </div>
+
+  <div class="grid">
+    <div class="inputs">
+      <section class="problem">
+        <p>Print the indices of the two numbers in <code>nums</code> that add up to <code>target</code>, one per line, in either order. Every test has exactly one answer, and you can't use the same element twice.</p>
+        <p>btw has no arrays, so <code>nums</code> is a microservice: <code>nums(i)</code> is the element at index <code>i</code>. Each test adds <code>nums</code> and a <code>serve</code> that calls <code>twoSum(n, target)</code>, where <code>n</code> is the length, so don't write your own <code>serve</code>.</p>
+      </section>
+      <section class="pane">
+        <h2><label for="solution">two_sum.btw</label> <span class="note">· <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs the tests</span></h2>
+        <textarea id="solution" spellcheck="false" autocapitalize="off" autocomplete="off">i use arch btw
+
+// TODO: print the two indices whose nums add up to target
+microservice twoSum(n, target) {
+}
+:wq
+</textarea>
+      </section>
+    </div>
+    <div class="results">
+      <section class="pane">
+        <h2>Tests</h2>
+        <pre id="tests"></pre>
+      </section>
+      <section class="pane">
+        <h2>Diagnostics</h2>
+        <pre id="test-diagnostics"></pre>
+      </section>
+    </div>
+  </div>
+  </div>
 </main>
 
 <script>
@@ -189,36 +257,69 @@
   const stdin = document.getElementById("stdin");
   const output = document.getElementById("output");
   const diagnostics = document.getElementById("diagnostics");
+  const testButton = document.getElementById("test");
+  const solution = document.getElementById("solution");
+  const tests = document.getElementById("tests");
+  const testDiagnostics = document.getElementById("test-diagnostics");
+
+  // Every test has exactly one answer, sorted. None uses 404: btw reads that
+  // literal as false.
+  const TESTS = [
+    { nums: [2, 7, 11, 15], target: 9, answer: [0, 1] },
+    { nums: [3, 2, 4], target: 6, answer: [1, 2] },
+    { nums: [3, 3], target: 6, answer: [0, 1] },
+    { nums: [-3, 4, 3, 90], target: 0, answer: [0, 2] },
+    { nums: [0, 4, 3, 0], target: 0, answer: [0, 3] },
+    { nums: [12, -40, 7, 99, 3, 64, -18, 25, 0, 41, 77, -5], target: -23, answer: [6, 11] },
+  ];
 
   let worker = null;
   let ready = false;
-  let queued = false; // a run asked for before the worker was ready
-  let pending = null; // { id, timer, started }
+  let queued = null; // run or runTests, asked for before the worker was ready
+  let pending = null; // { id, timer, started, out, diagnostics, done }
   let nextId = 0;
+
+  function setBusy(busy) {
+    runButton.disabled = busy;
+    testButton.disabled = busy;
+  }
 
   function startWorker() {
     ready = false;
-    runButton.disabled = true;
+    setBusy(true);
     worker = new Worker(`worker.js?v=${BUILD}`, { type: "module" });
     worker.onmessage = ({ data }) => {
       if (data.type === "ready") {
         ready = true;
-        runButton.disabled = false;
+        setBusy(false);
         status.textContent = "Ready.";
         if (queued) {
-          queued = false;
-          run();
+          const next = queued;
+          queued = null;
+          next();
         }
       } else if (data.type === "failed") {
         status.textContent = `The playground failed to load: ${data.error}`;
       } else if (data.type === "diagnostics" && pending && data.id === pending.id) {
-        diagnostics.textContent = data.text || "No diagnostics.";
+        pending.diagnostics.textContent = data.text || "No diagnostics.";
       } else if (data.type === "result" && pending && data.id === pending.id) {
         clearTimeout(pending.timer);
         const ms = Math.round(performance.now() - pending.started);
+        const { out, done } = pending;
         pending = null;
-        runButton.disabled = false;
-        show(data, ms);
+        setBusy(false);
+        if (data.crash) {
+          // btw allows 1,000 nested calls, and the browser's stack is smaller
+          // than a native one, so deep recursion can overflow it first.
+          restart(
+            out,
+            /Maximum call stack size/.test(data.crash)
+              ? "The browser ran out of stack space before btw's 1,000-call limit. `btw run` shows the real error."
+              : `The interpreter crashed: ${data.crash}`,
+          );
+        } else {
+          done(data.runs, ms);
+        }
       }
     };
     worker.onerror = (event) => {
@@ -228,9 +329,9 @@
 
   // Python on the worker can't be interrupted, and a crash can leave it in a
   // bad state, so both get a fresh worker.
-  function restart(message) {
+  function restart(out, message) {
     worker.terminate();
-    output.replaceChildren(line(message, "stderr"));
+    out.replaceChildren(line(message, "stderr"));
     status.textContent = "Restarting the interpreter…";
     startWorker();
   }
@@ -242,18 +343,8 @@
     return span;
   }
 
-  function show(result, ms) {
+  function show([result], ms) {
     output.replaceChildren();
-    if (result.crash) {
-      // btw allows 1,000 nested calls, and the browser's stack is smaller
-      // than a native one, so deep recursion can overflow it first.
-      restart(
-        /Maximum call stack size/.test(result.crash)
-          ? "The browser ran out of stack space before btw's 1,000-call limit. `btw run` shows the real error."
-          : `The interpreter crashed: ${result.crash}`,
-      );
-      return;
-    }
     if (result.stdout) output.append(line(result.stdout));
     if (result.stderr) output.append(line(result.stderr, "stderr"));
     if (result.exit === null) {
@@ -265,35 +356,113 @@
     status.textContent = `Done in ${ms} ms.`;
   }
 
-  function run() {
+  // Runs `sources` on the worker, `out` and `diagnostics` show the results and
+  // `done(runs, ms)` fills in `out`. `again` is run or runTests, whichever
+  // asked, for when the worker has to start first.
+  function submit(again, { sources, stdin = "", out, diagnostics, done }) {
     if (!ready) {
-      queued = true;
+      queued = again;
       return;
     }
     if (pending) {
       // A new run replaces one still going, like an endless doomscroll.
       clearTimeout(pending.timer);
       pending = null;
-      queued = true;
+      queued = again;
       worker.terminate();
       status.textContent = "Restarting the interpreter…";
       startWorker();
       return;
     }
     const id = nextId++;
-    runButton.disabled = true;
+    setBusy(true);
     status.textContent = "Running…";
-    output.replaceChildren();
+    out.replaceChildren();
     diagnostics.textContent = "";
     pending = {
       id,
+      out,
+      diagnostics,
+      done,
       started: performance.now(),
       timer: setTimeout(() => {
         pending = null;
-        restart(`Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
+        restart(out, `Still running after ${TIMEOUT_MS / 1000} s, so the playground stopped it.`);
       }, TIMEOUT_MS),
     };
-    worker.postMessage({ id, source: source.value, stdin: stdin.value });
+    worker.postMessage({ id, sources, stdin });
+  }
+
+  function run() {
+    submit(run, { sources: [source.value], stdin: stdin.value, out: output, diagnostics, done: show });
+  }
+
+  // btw has no arrays, so each test's array becomes a microservice, nums, and
+  // a serve calls twoSum. Both go just before :wq, so the solution's
+  // diagnostics keep their line numbers.
+  function withTest(code, { nums, target }) {
+    const harness = [
+      "",
+      "microservice nums(index) O(1) {",
+      ...nums.map((value, i) => `    vibe check index == ${i} { ship it ${value} }`),
+      "}",
+      "",
+      "serve localhost:3000 {",
+      `    twoSum(${nums.length}, ${target})`,
+      "}",
+      "",
+    ].join("\n");
+    const end = code.lastIndexOf(":wq");
+    return end === -1 ? code + harness : code.slice(0, end) + harness + code.slice(end);
+  }
+
+  function runTests() {
+    const code = solution.value;
+    submit(runTests, {
+      sources: TESTS.map((test) => withTest(code, test)),
+      out: tests,
+      diagnostics: testDiagnostics,
+      done: showTests,
+    });
+  }
+
+  function describe({ nums, target }) {
+    return `nums = [${nums.join(", ")}], target = ${target}`;
+  }
+
+  // Before the first run, the tests show what they'll call twoSum with.
+  function listTests() {
+    tests.replaceChildren(...TESTS.map((test) => line(`· ${describe(test)}\n`)));
+  }
+
+  function showTests(runs, ms) {
+    status.textContent = `Done in ${ms} ms.`;
+    if (runs[0].exit === null) {
+      tests.replaceChildren(line("Errors blocked the run.", "note"));
+      return;
+    }
+    let passed = 0;
+    tests.replaceChildren();
+    TESTS.forEach((test, i) => {
+      const { stdout, stderr, exit } = runs[i];
+      const got = stdout.split(/\s+/).filter(Boolean);
+      const sorted = got.map(Number).sort((a, b) => a - b);
+      if (exit === 0 && got.length === 2 && sorted.join() === test.answer.join()) {
+        passed++;
+        tests.append(line(`✓ ${describe(test)}\n`, "pass"));
+        return;
+      }
+      tests.append(line(`✗ ${describe(test)}\n`, "stderr"));
+      tests.append(line(`    expected ${test.answer.join(" ")}, got ${got.join(" ") || "nothing"}\n`));
+      if (stderr) tests.append(line(`    ${stderr.trimEnd()}\n`, "stderr"));
+      if (exit !== 0) tests.append(line(`    exit code ${exit}\n`, "note"));
+    });
+    tests.append(
+      line(
+        passed === TESTS.length ? `\n${passed}/${passed} passed. LGTM, ship it.` : `\n${passed}/${TESTS.length} passed.`,
+        "note",
+      ),
+    );
   }
 
   async function fetchExample(file) {
@@ -325,22 +494,40 @@
     if (button) loadExample(button.dataset.example, "stdin" in button.dataset);
   });
   runButton.addEventListener("click", run);
+  testButton.addEventListener("click", runTests);
   stdin.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       run();
     }
   });
-  source.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      run();
-    } else if (event.key === "Tab" && !event.shiftKey) {
-      event.preventDefault();
-      source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end");
-    }
-  });
 
+  // A code editor: Ctrl+Enter runs `action`, and Tab indents.
+  function editor(textarea, action) {
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        action();
+      } else if (event.key === "Tab" && !event.shiftKey) {
+        event.preventDefault();
+        textarea.setRangeText("    ", textarea.selectionStart, textarea.selectionEnd, "end");
+      }
+    });
+  }
+  editor(source, run);
+  editor(solution, runTests);
+
+  const tabs = document.querySelectorAll('[role="tab"]');
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      for (const other of tabs) {
+        other.setAttribute("aria-selected", other === tab);
+        document.getElementById(other.getAttribute("aria-controls")).hidden = other !== tab;
+      }
+    });
+  }
+
+  listTests();
   startWorker();
   loadExample("p0_fizzbuzz", false);
 </script>
