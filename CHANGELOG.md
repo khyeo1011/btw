@@ -6,6 +6,12 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `btw loadtest FILE NAME`: runs a microservice for n = 8 to 1024 in the
+  interpreter, fits the measured Big O and compares it with the static one
+  and the SLA. The PM is notified when the SLA is broken.
+
 ## [0.1.0] - unreleased
 
 The first release.

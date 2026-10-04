@@ -32,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--keep-asm", action="store_true", help="also write OUT.s")
     asm = commands.add_parser("asm", parents=[file_args], help="print the generated assembly")
     asm.add_argument("--annotate", action="store_true", help="add source-line comments")
+    loadtest = commands.add_parser(
+        "loadtest", parents=[file_args], help="measure a microservice's Big O"
+    )
+    loadtest.add_argument("name", help="the microservice to call")
+    loadtest.add_argument("--args", default="n", help="its arguments, n for the size (default: n)")
     commands.add_parser("tokens", parents=[file_args], help="debug: one token per line")
     commands.add_parser("parse", parents=[file_args], help="debug: indented AST with spans")
     commands.add_parser("lsp", help="start the language server on stdio")
@@ -98,6 +103,15 @@ def cmd_build(args: argparse.Namespace, source: str) -> int:
     return 1 if driver.has_errors(diagnostics) else 0
 
 
+def cmd_loadtest(args: argparse.Namespace, source: str) -> int:
+    diagnostics, text = driver.loadtest(source, str(args.file), args.name, args.args)
+    report(args, source, diagnostics, sys.stderr, summary=text is None)
+    if text is None:
+        return 1
+    sys.stdout.write(text)
+    return 0
+
+
 def cmd_asm(args: argparse.Namespace, source: str) -> int:
     diagnostics, text = driver.asm(source, str(args.file), args.annotate)
     report(args, source, diagnostics, sys.stderr)
@@ -162,6 +176,7 @@ COMMANDS = {
     "run": cmd_run,
     "build": cmd_build,
     "asm": cmd_asm,
+    "loadtest": cmd_loadtest,
     "tokens": cmd_tokens,
     "parse": cmd_parse,
 }

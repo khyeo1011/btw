@@ -56,6 +56,7 @@ btw-lang/
 │   ├── bigo.py                   Big O inference and diagnostics
 │   ├── suppress.py               works on my machine (P2)
 │   ├── interp.py
+│   ├── loadtest.py               btw loadtest: empirical Big O (P2)
 │   ├── codegen.py
 │   ├── driver.py                 check, run and build pipelines; gcc
 │   ├── printing.py               short and pretty diagnostic output
@@ -81,6 +82,7 @@ btw-lang/
 | `btw run FILE`                    | Check, then interpret if there are no errors. Diagnostics go to stderr.                                                            | The program's exit code, or 1 for compile errors                                |
 | `btw build FILE -o OUT`           | Check, generate assembly, assemble and link with gcc. `-o` defaults to the file name without `.btw`. `--keep-asm` also writes `OUT.s`. | 0 ok, 1 compile errors (E501 included), 3 when gcc fails (E502)            |
 | `btw asm FILE`                    | Print the generated assembly. `--annotate` adds source-line comments.                                                              | 0 or 1                                                                          |
+| `btw loadtest FILE NAME`          | Check, then call microservice NAME in the interpreter for n = 8 to 1024, count steps and fit the measured Big O (Language Spec 9.7). `--args 1,n,5` for other parameter lists. Soft errors don't block it. | 0 when it ran, whatever the verdict, 1 for hard errors, 2 for usage or file errors |
 | `btw lsp`                         | Start the language server on stdio, same as `btw-lsp`                                                                              | none                                                                            |
 | `btw tokens FILE`, `btw parse FILE` | Debug dumps for agents: one token per line, or an indented AST with spans                                                        | 0                                                                               |
 
