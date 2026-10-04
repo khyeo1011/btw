@@ -1,0 +1,147 @@
+npm install -g LIMIT = 10
+i use arch btw
+// TODO: globals
+console.log "serverless"
+npm install -g SEED = seed()
+break
+npm install -g HUGE = 9223372036854775808
+function legacy() {
+    ship it 1
+}
+// TODO: microservices
+microservice seed() O(1) {
+    ship it 4
+}
+microservice seed() O(1) {
+    ship it 5
+}
+microservice monolith(a, b, c, d, e, f, g) O(1) {
+    ship it a
+}
+microservice pairs(n) O(n) {
+    npm install i = 0
+    doomscroll i < n {
+        npm install j = 0
+        doomscroll j < n {
+            git push --force j = j + 1
+        }
+        git push --force i = i + 1
+    }
+    ship it i
+}
+microservice id(n) O(n^2) {
+    ship it n
+}
+microservice root(n) O(sqrt n) {
+    npm install i = 1
+    doomscroll i * i <= n {
+        git push --force i = i + 1
+    }
+    ship it i
+}
+microservice fib(n) O(2^n) {
+    vibe check n < 2 { ship it n }
+    ship it fib(n - 1) + fib(n - 2)
+}
+microservice triple(n) {
+    ship it n * 3
+}
+microservice approve(n) O(1) {
+    ship it LGTM
+}
+microservice audit(n) O(1) {
+    git revert n
+    ship it n
+}
+microservice early(n) O(1) {
+    ship it n
+    console.log n
+}
+// TODO: the server
+serve localhost:8080 {
+    npm install x = 1
+    npm install flag = LGTM
+    if (x > 0) {
+        console.log x
+    }
+    else {
+        console.log x
+    }
+    while (x < 3) {
+        console.log x
+    }
+    for x {
+        console.log x
+    }
+    return x
+    let y = 1
+    var z = 1
+    const C = 1
+    def helper() {
+        ship it 1
+    }
+    fn helper() {
+        ship it 1
+    }
+    func helper() {
+        ship it 1
+    }
+    print x
+    printf x
+    echo x
+    puts x
+    npm install yes = true
+    npm install no = false
+    npm install nothing = null
+    npm install zilch = nil
+    npm install huh = undefined
+    // TODO: syntax
+    console.log x === 1
+    console.log x;
+    x++
+    npm install bond = 007
+    vibe check 1 < x < 3 { console.log x }
+    git push x = 2
+    console.log "never closed
+    sudo console.log x
+    npm install 42 = 1
+    npm install a b
+    npm install "s" = 1
+    // TODO: names and types
+    // and a comment that isn't a TODO
+    git push --force LIMIT = 11
+    // works on my machine
+    git push --force LIMIT = 12
+    // works on my machine
+    console.log x
+    // works on my machine
+    console.log ghost
+    sudo git push --force x = 2
+    console.log missing(1)
+    touch grass
+    npm install -g LOCAL = 1
+    npm install f = seed
+    console.log x(1)
+    npm install v = 5 | console.log
+    npm install x = 2
+    npm install s = "text"
+    vibe check x { console.log x }
+    git push --force x = LGTM
+    console.log flag + 1
+    console.log x == flag
+    console.log !x
+    console.log -flag
+    console.log x && flag
+    console.log flag < flag
+    console.log id(flag)
+    console.log id(1, 2)
+    x * 2
+    doomscroll LGTM {
+        console.log x
+    }
+    ship it flag
+}
+// TODO: stop adding TODOs
+serve localhost:3000 {
+    console.log (LIMIT
+}
