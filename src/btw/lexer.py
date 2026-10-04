@@ -6,7 +6,7 @@
 import json
 from dataclasses import dataclass, field
 
-from btw.diagnostics import Diagnostic, Severity
+from btw.diagnostics import Diagnostic, Edit, Fix, Severity
 from btw.span import Pos, Span
 from btw.tokens import Comment, CommentKind, Token, TokenKind as K
 
@@ -160,8 +160,8 @@ class _Lexer:
         """Position of src[j], which must be on the current line at or after self.i."""
         return Pos(self.line, self.col + utf16_len(self.src[self.i : j]))
 
-    def error(self, message: str, span: Span) -> None:
-        self.diags.append(Diagnostic("E400", Severity.ERROR, message, span))
+    def error(self, message: str, span: Span, fixes: list[Fix] | None = None) -> None:
+        self.diags.append(Diagnostic("E400", Severity.ERROR, message, span, fixes=fixes or []))
 
     def emit(self, kind: K, end: int, value: int | str | None = None) -> Token:
         """Emit src[self.i:end] as one token (it must not contain a newline) and move past it."""
@@ -202,10 +202,12 @@ class _Lexer:
             kind, end = kw
             tok = self.emit(kind, end)
             if kind is K.GIT_PUSH_NO_FORCE:
+                fix = Fix("Add --force", [Edit(Span(tok.span.end, tok.span.end), " --force")])
                 self.error(
                     "Updates were rejected because the tip of your current branch is behind. "
                     "Use `git push --force`.",
                     tok.span,
+                    [fix],
                 )
             return
 
