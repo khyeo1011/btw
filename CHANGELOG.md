@@ -6,6 +6,12 @@ All notable changes to btw are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The playground's Output pane has an x86-64 view: the program's annotated
+  assembly, as `btw asm --annotate` prints it, generated before the run so a
+  program stopped for running too long still shows it.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added
