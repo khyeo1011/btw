@@ -147,11 +147,11 @@ change.
 - `p1_w203_unverifiable.btw`: W203 O(log n)
 - `p1_w417_overclaim.btw`: W417 O(n) annotation on an O(1) microservice
 - `p1_w509_infinite_doomscroll.btw`: W509 doomscroll LGTM with no way out (check-only)
-- `p2_curl_empty_reply.btw`: curl with only whitespace left: curl: (52), stdout flushed first, exit 52
-- `p2_curl_limits.btw`: curl reads -0, the minimum and the maximum, across \v and \f and with no final newline; the results wrap
+- `p2_curl_empty_reply.btw`: curl with only a newline left: curl: (52), stdout flushed first, exit 52
+- `p2_curl_limits.btw`: curl reads -0, the minimum and the maximum, across \v and \f; the results wrap
 - `p2_curl_no_stdin.btw`: no `.in`, so stdin is empty and the first curl is curl: (52)
 - `p2_curl_statement.btw`: curl as a statement (no W204), at the head of a pipe, and as the exit code
-- `p2_curl_sum.btw`: curl reads a count, then that many numbers, separated by newlines, a tab and \r\n; leading zeros are fine
+- `p2_curl_sum.btw`: curl reads a count, then that many numbers, separated by newlines, a space and a tab; leading zeros are fine
 - `p2_curl_weird_overflow.btw`: curl reads 9223372036854775808: curl: (8), exit 8
 - `p2_curl_weird_reply.btw`: curl reads `12abc`: curl: (8) after the first number is printed, exit 8
 - `p2_e400_curl_reserved.btw`: E400 reserved word `curl` used as a variable name
