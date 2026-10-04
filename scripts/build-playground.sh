@@ -15,6 +15,7 @@ examples=(
     p0_fizzbuzz
     p0_e417_big_o_underclaim
     p2_git_history
+    p2_git_blame
     p1_w509_infinite_doomscroll
     p2_e400_foreign_print
     p2_curl_sum
