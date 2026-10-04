@@ -87,8 +87,8 @@ error[E417]: You said O(n), but this is O(n²). Skill issue.
 
 Over-claiming is W417 ("Technically correct, but this is O(1). Sandbagging your
 estimates?"), a missing annotation is W102, recursion is W508 ("Complexity:
-O(?). The halting problem is a skill issue.") and `O(log n)` is W203 ("I can't
-verify O(log n). I'll take your word for it.").
+O(?). The halting problem is a skill issue.") and `O(2^n)` is W203 ("I can't
+verify O(2^n). I'll take your word for it.").
 
 ### sudo constants
 
@@ -224,20 +224,24 @@ machine (GNU as, Intel syntax) linked with the C runtime in `runtime/btw_rt.c`.
 
 ## How the Big O checker works
 
-`src/btw/bigo.py` counts nested loops over the AST (Language Spec 9.1):
+`src/btw/bigo.py` counts nested loops over the AST (Language Spec 9.1). A
+degree is a pair (k, j), meaning O(n^k log^j n), compared k first:
 
-- A `doomscroll` costs 1 plus the worst of its condition and body. Anything
-  else costs the worst of its parts.
+- A `doomscroll` costs its trip count plus the worst of its condition and
+  body. Anything else costs the worst of its parts.
+- The trip count is n, unless the loop has one local counter changed once per
+  iteration by a literal or constant step: counting to a fixed bound from a
+  literal start (`doomscroll i < 10`) is O(1), and halving or doubling is
+  O(log n).
 - A call costs the callee's degree, computed once per microservice by a
   memoized depth-first search over the call graph.
 - A microservice on a cycle (direct or mutual recursion) is `O(?)`, and so is
   anything that calls it.
 
-Only `O(1)`, `O(n)` and `O(n^k)` are checked; anything else is taken on trust
-(W203). Limits: it's a teaching heuristic, not a proof. Every loop counts as n
-iterations, so `doomscroll i < 10` is O(n) and a halving loop (really O(log n))
-is O(n). That error spreads: a loop that calls a microservice with a
-fixed-size loop is O(n²).
+`O(1)`, `O(n^k)`, `O(log^j n)` and `O(n^k log^j n)` are checked; anything else,
+like `O(2^n)`, is taken on trust (W203). Limits: it's a teaching heuristic, not
+a proof. Any other loop counts as n iterations, so a `lo`/`hi` binary search is
+O(n), and so is a loop up to a bound that grew to 2^n.
 
 ## Testing
 

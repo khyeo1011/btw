@@ -121,3 +121,30 @@ for this card. What the project owner decided about the rest:
    The owner wants it fixed; it's NOTES-parser question 4 now.
 3. **Resolved: catalog text.** Language Spec 11 now has the row for the
    "Even Lisp programmers close their parentheses." E400.
+
+## Smarter Big O: log n and fixed-size loops
+
+Degrees are (poly, log) pairs now, and each doomscroll gets a trip count
+(Language Spec 9.1, "Trip counts"). Decisions beyond the plan:
+
+- **`log^j n` annotations are checked.** A halving loop inside a halving loop
+  is O(log² n), and W102's Add SLA and E417's quick fix insert that. If
+  `log^2 n` were W203, a quick fix would produce an unverifiable SLA.
+- **No side table.** `ast.BigO` is a plain dataclass, so it isn't hashable.
+  `bigo.annotation()` re-reads `BigO.text` each time instead; the parser and
+  `ast.py` are unchanged.
+- **The counter can be on either side** of the comparison: `0 < i` is
+  `i > 0`.
+- **What counts as changing the counter:** every `git push --force v`,
+  `git revert v` and `npm install v` anywhere in the body, nested loops
+  included. Exactly one is allowed, and it must be the top-level step.
+- **sudo breaks constants.** `sudo git push --force LIMIT = ...` anywhere in
+  the program means LIMIT isn't a constant for trip counts.
+- **Negative literals** (`n / -2`) count as literals.
+- **Golden change, approved by the project owner:** `p1_w203_unverifiable`
+  used `O(log n)`, which is checked now. It's a 2^n subset counter with
+  `O(2^n)` instead.
+- **Open: `O(log(n))`** with parentheses is still W203. Only `log n` was
+  asked for.
+- **Not detected: infinite loops.** `i = 0; doomscroll i < 10 { i = i - 1 }`
+  is O(1) by the rules, like any other loop the heuristic misreads.
