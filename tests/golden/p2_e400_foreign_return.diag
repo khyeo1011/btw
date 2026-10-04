@@ -1,0 +1,2 @@
+2:1: error[E400]: `def` is a monolith mindset. Use `microservice`.
+6:5: error[E400]: No returns, only deploys. Use `ship it`.

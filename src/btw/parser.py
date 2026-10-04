@@ -81,6 +81,38 @@ INFIX: dict[K, tuple[int, bool]] = {
 }
 PREFIX_LEVEL = 8
 
+# Words from other languages: (words, btw form, roast), Language Spec 13. WORD
+# in a roast stands for the word as written, in backticks.
+FOREIGN_ROASTS = [
+    (("if",), "vibe check", "`if` is a boomer conditional. Use `vibe check`."),
+    (("else",), "skill issue", "`else`? That's a `skill issue`. Literally, type `skill issue`."),
+    (("while", "for"), "doomscroll", "Nobody uses WORD anymore. Use `doomscroll`, like it's 2am."),
+    (("break",), "touch grass", "Don't `break`. Go `touch grass`."),
+    (("return",), "ship it", "No returns, only deploys. Use `ship it`."),
+    (("let", "var"), "npm install", "WORD? Real variables come from `npm install`."),
+    (("const",), "npm install -g", "`const` is just a global install. Use `npm install -g`."),
+    (
+        ("function", "def", "fn", "func"),
+        "microservice",
+        "WORD is a monolith mindset. Use `microservice`.",
+    ),
+    (
+        ("print", "printf", "echo", "puts"),
+        "console.log",
+        "WORD? Real developers debug with `console.log`.",
+    ),
+]
+FOREIGN: dict[str, tuple[str, str]] = {
+    word: (form, roast.replace("WORD", f"`{word}`"))
+    for words, form, roast in FOREIGN_ROASTS
+    for word in words
+}
+# Foreign words that also roast before `(...) {`, like `if (x > 1) {`.
+FOREIGN_PAREN = {"if", "while", "for"}
+# What can follow a foreign word at the start of a statement, but never an
+# expression: the roast only replaces an E400 the statement gets anyway.
+NOT_AN_EXPR_TAIL = {K.IDENT, K.INT, K.STRING, K.BANG, K.LBRACE, *SPELLING}
+
 CHAINED = "Chained comparisons aren't a thing here. This isn't Python."
 SUDO_MISUSE = "`sudo` only works with `git push --force` and `git revert`."
 E408 = "Error: program never exited. Classic Vim user."
@@ -169,7 +201,7 @@ class _Parser:
 
     # Errors
 
-    def error(self, message: str, span: Span) -> None:
+    def error(self, message: str, span: Span, fixes: list[Fix] | None = None) -> None:
         """Report an E400, unless this statement or item already has one."""
         if self.errored:
             return
@@ -177,7 +209,7 @@ class _Parser:
         if span.start in self.reported:
             return
         self.reported.add(span.start)
-        self.diags.append(Diagnostic("E400", Severity.ERROR, message, span))
+        self.diags.append(Diagnostic("E400", Severity.ERROR, message, span, fixes=fixes or []))
 
     def unexpected(self, expected: str) -> None:
         tok = self.peek()
@@ -185,6 +217,33 @@ class _Parser:
             self.errored = True  # the lexer already reported this token
             return
         self.error(f"Syntax error: expected {expected}, found {found(tok)}.", tok.span)
+
+    def roast_foreign(self) -> None:
+        """E400 on a word from another language, with a fix that swaps in the btw form."""
+        tok = self.peek()
+        form, roast = FOREIGN[tok.text]
+        self.error(roast, tok.span, [Fix(f"Use {form}", [Edit(tok.span, form)])])
+
+    def foreign_statement(self) -> bool:
+        """Whether a statement starts with a foreign word in a shape that can't be an
+        expression statement (Language Spec 13)."""
+        tok, nxt = self.peek(), self.peek(1)
+        if tok.text not in FOREIGN:
+            return False
+        if nxt.kind in NOT_AN_EXPR_TAIL:
+            return True
+        if tok.text not in FOREIGN_PAREN or nxt.kind is not K.LPAREN:
+            return False
+        depth, j = 0, self.i + 1
+        while self.toks[j].kind not in (K.EOF, K.WQ):
+            if self.toks[j].kind is K.LPAREN:
+                depth += 1
+            elif self.toks[j].kind is K.RPAREN:
+                depth -= 1
+                if depth == 0:
+                    return self.toks[j + 1].kind is K.LBRACE
+            j += 1
+        return False
 
     def error_expr(self) -> ast.ErrorExpr:
         """A placeholder where an expression should have been."""
@@ -310,6 +369,8 @@ class _Parser:
                     "Serverless still needs a server.",
                     tok.span,
                 )
+            case K.IDENT if tok.text in FOREIGN:
+                self.roast_foreign()
             case _:
                 self.unexpected("`microservice`, `serve` or `npm install`")
         if self.errored:
@@ -511,6 +572,9 @@ class _Parser:
                 return ast.Print(value, span=self.span_from(start))
             case K.ARCH:
                 self.arch_line()
+                return None
+            case K.IDENT if self.foreign_statement():
+                self.roast_foreign()
                 return None
             case kind if kind in EXPR_START:
                 expr = self.pipeline()

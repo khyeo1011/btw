@@ -1,0 +1,8 @@
+i use arch btw
+serve localhost:3000 {
+    print "hello"
+    puts 42
+    echo LGTM
+    print(5)
+}
+:wq

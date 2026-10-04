@@ -4,7 +4,7 @@ import pytest
 
 from btw import ast
 from btw.lexer import lex
-from btw.diagnostics import Diagnostic, Severity
+from btw.diagnostics import Diagnostic, Edit, Fix, Severity
 from btw.parser import W208, format_ast, parse
 from btw.span import Pos, Span
 from btw.tokens import Token, TokenKind as K
@@ -838,6 +838,70 @@ def test_deep_nesting_is_an_internal_error_not_a_crash():
 def test_tokens_without_eof():
     program, diags = parse([Token(K.ARCH, "i use arch btw", sp(1, 1, 1, 15))])
     assert program.has_arch and [d.code for d in diags] == ["E408"]
+
+
+# Foreign keywords (Language Spec 13)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "npm install if = 1\nconsole.log if",
+        "npm install print = 1\ngit push --force print = print + 1",
+        "print(5)",
+        "return - 1",
+        "if (x)",
+        "while (a) || b",
+        "for (a) + 1",
+        "console.log true",
+    ],
+)
+def test_foreign_words_are_still_identifiers(body):
+    stmts(body)  # no parser diagnostics
+
+
+@pytest.mark.parametrize(
+    "body, roast",
+    [
+        ("if x > 1 { }", "`if` is a boomer conditional. Use `vibe check`."),
+        ("if (x > 1) { }", "`if` is a boomer conditional. Use `vibe check`."),
+        ("if ((a) || (b)) {\n}", "`if` is a boomer conditional. Use `vibe check`."),
+        ("if !x { }", "`if` is a boomer conditional. Use `vibe check`."),
+        ("else { }", "`else`? That's a `skill issue`. Literally, type `skill issue`."),
+        ("else if x { }", "`else`? That's a `skill issue`. Literally, type `skill issue`."),
+        ("while LGTM { }", "Nobody uses `while` anymore. Use `doomscroll`, like it's 2am."),
+        ("for (i) { }", "Nobody uses `for` anymore. Use `doomscroll`, like it's 2am."),
+        ("break touch grass", "Don't `break`. Go `touch grass`."),
+        ("return 0", "No returns, only deploys. Use `ship it`."),
+        ("return 404", "No returns, only deploys. Use `ship it`."),
+        ("let x = 1", "`let`? Real variables come from `npm install`."),
+        ("const X = 1", "`const` is just a global install. Use `npm install -g`."),
+        ("fn f() { }", "`fn` is a monolith mindset. Use `microservice`."),
+        ('printf "%d"', "`printf`? Real developers debug with `console.log`."),
+    ],
+)
+def test_foreign_statement_roast(body, roast):
+    assert errors(wrap(body)) == [(3, 1, "E400", roast)]
+
+
+@pytest.mark.parametrize("word", ["function", "def", "const", "let", "if", "print"])
+def test_foreign_item_roast(word):
+    """At top level any foreign word is roasted, whatever follows it."""
+    src = f"i use arch btw\n{word} f(n) {{\n    ship it n\n}}\nserve localhost:3000 {{\n}}\n:wq\n"
+    [(line, col, code, message)] = errors(src)
+    assert (line, col, code) == (2, 1, "E400")
+    assert message.startswith(f"`{word}`")
+
+
+def test_foreign_roast_fix_swaps_the_word():
+    _, _, [diag] = parse_src(wrap("    if (x) {\n    }"))
+    assert diag.fixes == [Fix("Use vibe check", [Edit(sp(3, 5, 3, 7), "vibe check")])]
+
+
+def test_foreign_roast_drops_the_statement():
+    program, _, _ = parse_src(wrap("return x\nconsole.log 1"))
+    [stmt] = program.items[0].body.stmts
+    assert isinstance(stmt, ast.Print)
 
 
 # Debug dump

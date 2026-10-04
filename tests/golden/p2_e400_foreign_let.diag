@@ -1,0 +1,2 @@
+2:1: error[E400]: `let`? Real variables come from `npm install`.
+4:5: error[E400]: `var`? Real variables come from `npm install`.
