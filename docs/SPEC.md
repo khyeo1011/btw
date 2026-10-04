@@ -389,6 +389,44 @@ git log x                  prints:
 - E429 can't be suppressed. Technical debt can only be refinanced.
 - Hovering any TODO shows "Technical debt: 3/5 TODOs used."
 
+## 9.7 Load test (P2)
+
+`btw loadtest FILE NAME` calls microservice NAME in the interpreter for n = 8, 16, 32 and so on up to 1024, counts the work, and puts the measured complexity next to the static one from 9.1. The static checker counts every loop as n iterations; the load test catches where that's pessimistic (a halving loop) or optimistic (`doomscroll i < n * n`).
+
+- Hard errors block it. Soft errors (E403, E417) and warnings don't, so an E417 can be measured. Diagnostics go to stderr.
+- Each size is a fresh run: global initializers in source order, then one call to NAME. `serve` doesn't run, and `console.log` and `git log` output is discarded.
+- The call passes `n` by default. `--args 1,n,5` gives the arguments for any parameter count: numbers as written, `n` replaced by the size.
+- A step is one doomscroll iteration or one microservice call, the call to NAME included. A microservice without loops or calls takes 1 step, and recursion is measured.
+- The whole sweep has a budget of 3,000,000 steps. It stops at the first size that takes it over budget or hits a runtime error (Language Spec 10) and fits the sizes before it. At least 2 sizes must finish.
+- The slope s is the least-squares fit of ln(steps) against ln(n), printed with two decimals. Comparisons round s to the nearest whole number, halves up.
+- The exit code is 0 whenever the load test runs, whatever the verdict. Hard errors exit 1.
+
+Output, on stdout, for the microservice in `p0_e417_big_o_underclaim.btw` (n² + n + 1 steps):
+
+```
+n = 8: 73 steps
+n = 16: 273 steps
+...
+n = 1024: 1049601 steps
+static O(n²).
+measured O(n^1.98). Your SLA says O(n). The PM has been notified.
+```
+
+One line per size, `1 step` when singular. The line for the size that stopped the sweep, which isn't fitted, is `n = 256: over budget. Stopped.` or `n = 1024: Stack overflow. Please search stackoverflow.com. Stopped.` with the runtime error's message. Every complexity uses the annotation's variable, `n` when there isn't one.
+
+| Line     | When                                     | Text                                                                    |
+| -------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| static   | rounded s is less than the inferred d    | static O(n²). The static checker was being pessimistic.                 |
+| static   | rounded s is greater than the inferred d | static O(n). The static checker was being optimistic.                   |
+| static   | otherwise, UNKNOWN included              | static O(n²).                                                           |
+| measured | SLA k, rounded s greater than k          | measured O(n^1.98). Your SLA says O(n). The PM has been notified.       |
+| measured | SLA k, rounded s equals k                | measured O(n^1.98). Your SLA says O(n²). LGTM.                          |
+| measured | SLA k, rounded s less than k             | measured O(n^0.20). Your SLA says O(n). Sandbagging your estimates?     |
+| measured | unverifiable SLA                         | measured O(n^0.20). Your SLA says O(log n). I'll take your word for it. |
+| measured | no SLA                                   | measured O(n^0.98). No SLA, so nobody was notified.                     |
+
+The static complexity is formatted as in 9.1. An unverifiable SLA is echoed as written, like W203.
+
 # 10. Runtime behavior
 
 - Order: global initializers in source order, then the `serve` body. The exit code is the value of `ship it` in `serve`, or 0. The OS keeps only the low 8 bits, so tests stay within 0 to 255.
