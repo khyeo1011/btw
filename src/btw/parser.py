@@ -265,6 +265,16 @@ class _Parser:
         pos = self.peek().span.start
         return ast.ErrorExpr(span=Span(pos, pos))
 
+    def condition(self) -> ast.Expr:
+        """A `vibe check` or `doomscroll` condition. When something other than `{` follows
+        it on the same line, the condition was cut short by that mistake, so it becomes
+        an ErrorExpr and the checker doesn't type the fragment (Language Spec 5: one
+        mistake, one squiggle)."""
+        cond = self.expr()
+        if not self.at(K.LBRACE, K.NEWLINE, K.EOF):
+            return ast.ErrorExpr(span=cond.span)
+        return cond
+
     # Program and items
 
     def program(self, comments: list[Comment]) -> ast.Program:
@@ -589,7 +599,7 @@ class _Parser:
                 return self.if_stmt()
             case K.DOOMSCROLL:
                 self.advance()
-                cond = self.expr()
+                cond = self.condition()
                 body = self.expect_block()
                 return ast.While(cond, body, span=self.span_from(start))
             case K.TOUCH_GRASS:
@@ -659,7 +669,7 @@ class _Parser:
 
     def if_stmt(self) -> ast.If:
         kw = self.advance()
-        cond = self.expr()
+        cond = self.condition()
         then = self.expect_block()
         else_: ast.Block | ast.If | None = None
         # Else lookahead: `skill issue` may start on a later line (Language Spec 3).
